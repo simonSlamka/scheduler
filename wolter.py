@@ -63,6 +63,7 @@ profitSoFar = netProfit1 + netProfit2
 Ravg = df['Rimmediate'].mean()
 netProfitAvg = Ravg - max(0, Ravg - taxThreshold) * taxRate
 tTotalMin = Ctotal / netProfitAvg
+tTotalMinEssentials = (Ce * 3) / netProfitAvg # over entire period
 projectedGross = grossSoFar + Ttotal * df['Rimmediate'].mean()
 projectedGross40h = grossSoFar + 40 * df['Rimmediate'].mean()
 taxToPay = taxToPay1 + taxToPay2
@@ -98,15 +99,17 @@ print(f"Net Monthly Profit: ${netMonthly:.2f}")
 print(f"Net Projected Profit (40h/week): ${netProjectedProfit40h:.2f}")
 print(f"Net Projected Profit: ${netProjectedProfit:.2f}")
 print(f"Best hour to work based on observed Rimmediate: {suggestedHour}")
+print(f"Time to reach Ctotal at current rate: {tTotalMin:.2f} hours (per week: {tTotalMin / Tweeks:.2f} hours)")
+print(f"Time to reach Ce * 3 at current rate (essentials only): {tTotalMinEssentials:.2f} hours (per week: {tTotalMinEssentials / Tweeks:.2f} hours)")
 
-pbar = tqdm(total=Ctotal)
-pbar.n = profitSoFar
-pbar.last_print_n = profitSoFar
-pbar.refresh()
-pbar.close()
-print(f"Time to reach Ctotal at current rate: {tTotalMin:.2f} hours (per week: {tTotalMin / Tweeks:.2f} hours))")
+print("")
 
 if netProjectedProfit >= Ctotal:
-	print("You can afford to buy essentials AND the tech you want!")
+	print("If you keep up your current efficiency, you will be able to afford to buy essentials AND the tech you want by the end of week 13!")
+	pbar = tqdm(total=Ctotal)
+	pbar.n = profitSoFar
+	pbar.last_print_n = profitSoFar
+	pbar.refresh()
+	pbar.close()
 else:
 	print("You cannot afford to buy essentials NOR the tech you want!")
