@@ -1,5 +1,5 @@
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 import numpy as np
 from tqdm import tqdm
@@ -61,6 +61,18 @@ df.to_csv("log.csv", index=False)
 
 Ttotal = Tweeks * ThoursWeek - len(df)
 
+now = datetime.now()
+
+if now.day <= 15:
+	periodEnd = now.replace(day=15, hour=23, minute=59, second=59, microsecond=999999)
+else:
+	periodEnd = now.replace(month=now.month % 12 + 1, day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1)
+
+remainingDaysInPeriod = (periodEnd - now).days
+df["date"] = pd.to_datetime(df["dt"]).dt.date
+TtotalPerDay = df.groupby("date")["hour"].nunique()
+Tavg = TtotalPerDay.mean()
+
 grossSoFar = df['Rimmediate'].sum()
 profitSoFar = netProfit1 + netProfit2
 Ravg = df['Rimmediate'].mean()
@@ -74,6 +86,7 @@ taxToPay = taxToPay1 + taxToPay2
 netProjectedProfit = projectedGross - taxToPay
 netProjectedProfit40h = projectedGross40h - taxToPay
 netProjectedProfit10h = projectedGross10h - taxToPay
+netProjectedProfitEndOfCurrentPeriod = (remainingDaysInPeriod * Tavg * netProfitAvg + currentPeriodProfit)
 netDaily = calculate_intermediate_net_earnings(df.copy(), 'D')
 netWeekly = calculate_intermediate_net_earnings(df.copy(), 'W')
 netMonthly = calculate_intermediate_net_earnings(df.copy(), 'M')
@@ -111,6 +124,14 @@ print(f"Time to reach Ce * 3 at current rate (essentials only): {tTotalMinEssent
 print("")
 
 print(colored(f"Current payout for the current period: ${currentPeriodProfit:.2f}", "yellow"))
+if netProjectedProfitEndOfCurrentPeriod > Ce:
+	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} by the end of the current period.", "blue"))
+	print(colored("You can afford working every other day!", "green"))
+else:
+	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} by the end of the current period.", "red", attrs=["bold", "blink"]))
+	print(colored(f"You need to work at least {Ce / (currentPeriodProfit - netProfitAvg):.2f} additional hours to afford essentials!", "red", attrs=["bold", "blink"]))
+	print(colored(f"You need to work at least {Ctotal / (currentPeriodProfit - netProfitAvg):.2f} additional hours to afford essentials AND the tech you want!", "grey", attrs=["bold", "blink"]))
+	print(colored(f"Per day, you need to work at least {(Ce / (currentPeriodProfit - netProfitAvg)) / remainingDaysInPeriod:.2f} hours to afford essentials!", "red", attrs=["bold", "blink"]))
 
 print("")
 
