@@ -4,6 +4,7 @@ from collections import defaultdict
 import numpy as np
 from tqdm import tqdm
 from termcolor import colored
+from calendar import monthrange
 
 ### Constants ###
 Tweeks = 13  # total n of weeks
@@ -66,7 +67,8 @@ now = datetime.now()
 if now.day <= 15:
 	periodEnd = now.replace(day=15, hour=23, minute=59, second=59, microsecond=999999)
 else:
-	periodEnd = now.replace(month=now.month % 12 + 1, day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1)
+	last = monthrange(now.year, now.month)[1]
+	periodEnd = now.replace(day=last, hour=23, minute=59, second=59, microsecond=999999)
 
 remainingDaysInPeriod = (periodEnd - now).days
 df["date"] = pd.to_datetime(df["dt"]).dt.date
@@ -81,11 +83,11 @@ tTotalMin = Ctotal / netProfitAvg
 tTotalMinEssentials = (Ce * 3) / netProfitAvg # over entire period
 projectedGross = grossSoFar + Ttotal * df['Rimmediate'].mean()
 projectedGross40h = grossSoFar + 40 * df['Rimmediate'].mean()
-projectedGross10h = grossSoFar + 10 * df['Rimmediate'].mean()
+projectedGross14h = grossSoFar + 14 * df['Rimmediate'].mean()
 taxToPay = taxToPay1 + taxToPay2
 netProjectedProfit = projectedGross - taxToPay
 netProjectedProfit40h = projectedGross40h - taxToPay
-netProjectedProfit10h = projectedGross10h - taxToPay
+netProjectedProfit14h = projectedGross14h - taxToPay
 netProjectedProfitEndOfCurrentPeriod = (remainingDaysInPeriod * Tavg * netProfitAvg + currentPeriodProfit)
 netDaily = calculate_intermediate_net_earnings(df.copy(), 'D')
 netWeekly = calculate_intermediate_net_earnings(df.copy(), 'W')
@@ -105,7 +107,8 @@ suggestedHour = max(wMeans, key=wMeans.get)
 
 # Display results
 print(f"Total Hours to be Worked: {Ttotal}")
-print(f"Average Rimmediate (Ravg): ${Ravg:.2f}")
+print(f"Average Ravg: ${Ravg:.2f}")
+print(f"Average Tavg: {Tavg:.2f}")
 print(f"Total Earned so Far: ${grossSoFar:.2f}")
 print(f"Net Earned so Far: ${profitSoFar:.2f}")
 print(f"Expected Profit: ${projectedGross:.2f}")
@@ -115,7 +118,7 @@ print(f"Net Weekly Profit: ${netWeekly:.2f}")
 print(f"Net Per-Period Profit: ${netProfit1 + netProfit2:.2f}")
 print(f"Net Monthly Profit: ${netMonthly:.2f}")
 print(f"Net Projected Profit (40h/week): ${netProjectedProfit40h:.2f}")
-print(f"Net Projected Profit (10h/week): ${netProjectedProfit10h:.2f}")
+print(f"Net Projected Profit (14h/week): ${netProjectedProfit14h:.2f}")
 print(f"Net Projected Profit: ${netProjectedProfit:.2f}")
 print(f"Best hour to work based on observed Rimmediate: {suggestedHour}")
 print(f"Time to reach Ctotal at current rate: {tTotalMin:.2f} hours (per week: {tTotalMin / Tweeks:.2f} hours)")
@@ -123,15 +126,15 @@ print(f"Time to reach Ce * 3 at current rate (essentials only): {tTotalMinEssent
 
 print("")
 
-print(colored(f"Current payout for the current period: ${currentPeriodProfit:.2f}", "yellow"))
+print(colored(f"Current payout for the current period: ${currentPeriodProfit:.2f} (DKK: {currentPeriodProfit * 6.97:.2f})", "yellow"))
 if netProjectedProfitEndOfCurrentPeriod > Ce:
 	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} by the end of the current period.", "blue"))
 	print(colored("You can afford working every other day!", "green"))
 else:
-	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} by the end of the current period.", "red", attrs=["bold", "blink"]))
-	print(colored(f"You need to work at least {Ce / (currentPeriodProfit - netProfitAvg):.2f} additional hours to afford essentials!", "red", attrs=["bold", "blink"]))
-	print(colored(f"You need to work at least {Ctotal / (currentPeriodProfit - netProfitAvg):.2f} additional hours to afford essentials AND the tech you want!", "grey", attrs=["bold", "blink"]))
-	print(colored(f"Per day, you need to work at least {(Ce / (currentPeriodProfit - netProfitAvg)) / remainingDaysInPeriod:.2f} hours to afford essentials!", "red", attrs=["bold", "blink"]))
+	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * 6.97:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
+	print(colored(f"You need to work at least {(Ce - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials!", "red", attrs=["bold", "blink"]))
+	print(colored(f"You need to work at least {(Ctotal - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials AND the tech you want!", "grey"))
+	print(colored(f"Per day, you need to work at least {((Ce - currentPeriodProfit) / netProfitAvg) / remainingDaysInPeriod:.2f} hours to afford essentials (OR {((Ce - currentPeriodProfit) / 28) / remainingDaysInPeriod:.2f} high-traffic hours)!", "red", attrs=["bold", "blink"]))
 
 print("")
 
