@@ -107,8 +107,8 @@ suggestedHour = max(wMeans, key=wMeans.get)
 
 # Display results
 print(f"Total Hours to be Worked: {Ttotal}")
-print(f"Average Ravg: ${Ravg:.2f}")
-print(f"Average Tavg: {Tavg:.2f}")
+print(f"Ravg: ${Ravg:.2f}")
+print(f"Tavg: {Tavg:.2f}")
 print(f"Total Earned so Far: ${grossSoFar:.2f}")
 print(f"Net Earned so Far: ${profitSoFar:.2f}")
 print(f"Expected Profit: ${projectedGross:.2f}")
