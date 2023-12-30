@@ -7,10 +7,10 @@ from termcolor import colored
 from calendar import monthrange
 
 ### Constants ###
-Tweeks = 13  # total n of weeks
-ThoursWeek = 80  # total n of hours/week
+Tweeks = 5  # total n of weeks
+ThoursWeek = 20  # total n of hours/week
 Ctech = 1500  # total cost of tech to purchase
-Ce = 910  # total cost of monthly essentials
+Ce = 1000  # total cost of monthly essentials
 Cbuf = 500  # buffer
 Ctotal = 5730  # absolute cost
 taxRate = 0.46  # tax rate
