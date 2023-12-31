@@ -35,7 +35,7 @@ def calculate_intermediate_net_earnings(df, freq):
 try:
 	df = pd.read_csv("log.csv")
 except FileNotFoundError:
-	df = pd.DataFrame(columns=["dt", "hour", "Rimmediate", "smiles"])
+	df = pd.DataFrame(columns=["dt", "hour", "Rimmediate"])
 
 if 'dt' in df.columns:
 	df['dt'] = pd.to_datetime(df['dt'])
@@ -53,10 +53,9 @@ while True:
 	if hoursInput.lower() == "stop" or hoursInput == "":
 		break
 	timeNow = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-	hour, Rimmediate, smiles = hoursInput.split("|")
+	hour, Rimmediate = hoursInput.split("|")
 	Rimmediate = float(Rimmediate)
-	smiles = int(smiles)
-	df = pd.concat([df, pd.DataFrame({"dt": [timeNow], "hour": [hour], "Rimmediate": [Rimmediate], "smiles": [smiles]})], ignore_index=True, sort=False)
+	df = pd.concat([df, pd.DataFrame({"dt": [timeNow], "hour": [hour], "Rimmediate": [Rimmediate]}).dropna()], ignore_index=True, sort=False)
 
 df.to_csv("log.csv", index=False)
 
