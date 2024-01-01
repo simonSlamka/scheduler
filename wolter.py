@@ -8,11 +8,11 @@ from calendar import monthrange
 
 ### Constants ###
 Tweeks = 5  # total n of weeks
-ThoursWeek = 20  # total n of hours/week
+ThoursWeek = 14  # total n of hours/week
 Ctech = 1500  # total cost of tech to purchase
 Ce = 1000  # total cost of monthly essentials
 Cbuf = 500  # buffer
-Ctotal = 5730  # absolute cost
+Ctotal = 4000  # absolute cost
 taxRate = 0.46  # tax rate
 taxThreshold = 542  # tax threshold in USD
 
@@ -138,7 +138,7 @@ else:
 print("")
 
 if netProjectedProfit >= Ctotal:
-	print("If you keep up your current efficiency, you will be able to afford to buy essentials AND the tech you want by the end of week 13!")
+	print(f"If you keep up your current efficiency, you will be able to afford to buy essentials AND the tech you want by the end of week {Tweeks}!")
 	pbar = tqdm(total=Ctotal)
 	pbar.n = profitSoFar
 	pbar.last_print_n = profitSoFar
@@ -146,3 +146,14 @@ if netProjectedProfit >= Ctotal:
 	pbar.close()
 else:
 	print("You cannot afford to buy essentials NOR the tech you want!")
+	pbar = tqdm(total=Ce, desc=colored("Essentials", "red"))
+	pbar.n = profitSoFar
+	pbar.last_print_n = profitSoFar
+	pbar.refresh()
+	pbar.close()
+	# absolute progress bar for motivation
+	pbar = tqdm(total=Ctotal, desc=colored("Total", "grey"))
+	pbar.n = profitSoFar
+	pbar.last_print_n = profitSoFar
+	pbar.refresh()
+	pbar.close()
