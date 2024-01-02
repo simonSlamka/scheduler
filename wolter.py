@@ -5,6 +5,8 @@ import numpy as np
 from tqdm import tqdm
 from termcolor import colored
 from calendar import monthrange
+import matplotlib.pyplot as plt
+import mplcyberpunk
 
 
 ### Constants ###
@@ -63,7 +65,7 @@ while True:
 	hoursInput = input("Hour|Rimmediate (\"stop\" to break): ")
 	if hoursInput.lower() == "stop" or hoursInput == "":
 		break
-	timeNow = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+	timeNow = datetime.now().strftime("%Y-%m-%d")
 	hour, Rimmediate = hoursInput.split("|")
 	Rimmediate = float(Rimmediate)
 	df = pd.concat([df, pd.DataFrame({"dt": [timeNow], "hour": [hour], "Rimmediate": [Rimmediate]}).dropna()], ignore_index=True, sort=False)
@@ -72,13 +74,13 @@ df.to_csv("log.csv", index=False)
 
 Ttotal = Tweeks * ThoursWeek - len(df)
 
-now = datetime.now()
+now = datetime.now().date()
 
 if now.day <= 15:
-	periodEnd = now.replace(day=15, hour=23, minute=59, second=59, microsecond=999999)
+	periodEnd = now.replace(day=15)#, hour=23, minute=59, second=59, microsecond=999999)
 else:
 	last = monthrange(now.year, now.month)[1]
-	periodEnd = now.replace(day=last, hour=23, minute=59, second=59, microsecond=999999)
+	periodEnd = now.replace(day=last)#, hour=23, minute=59, second=59, microsecond=999999)
 
 remainingDaysInPeriod = (periodEnd - now).days
 df["date"] = pd.to_datetime(df["dt"]).dt.date
@@ -165,3 +167,14 @@ render_pbar(Ctotal, profitSoFar, "Total", "grey")
 print("")
 # maintenance pbar - get a full medical check-up every ~6 months (1000 work hours)
 render_pbar(1000, Ttotal, "Maintenance (check-up)", "cyan")
+
+plt.style.use("cyberpunk")
+plt.figure(figsize=(16, 9))
+plt.plot(df['dt'], df['Rimmediate'], color="cyan", linewidth=0.5)
+plt.title("Hourly earnings")
+plt.xlabel("Time")
+plt.ylabel("Hourly earnings")
+plt.xticks(rotation=45)
+plt.tight_layout()
+mplcyberpunk.add_glow_effects()
+plt.show()
