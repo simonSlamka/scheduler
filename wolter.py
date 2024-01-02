@@ -6,17 +6,19 @@ from tqdm import tqdm
 from termcolor import colored
 from calendar import monthrange
 
+
 ### Constants ###
 Tweeks = 5  # total n of weeks
 ThoursWeek = 14  # total n of hours/week
-Ctech = 1500  # total cost of tech to purchase
-Ce = 1000  # total cost of monthly essentials
-Cbuf = 500  # buffer
-Cdating = 500  # dating budget
+Ctech = 2000  # total cost of tech to purchase
+Ce = 2000  # total cost of monthly essentials
+Cbuf = 1000  # buffer
+Cdating = 1000  # dating budget
 CdebtRepayment = 2500  # debt repayment budget
 Ctotal = Ctech + Ce + Cbuf + Cdating + CdebtRepayment  # total cost
 taxRate = 0.46  # tax rate
 taxThreshold = 542  # tax threshold in USD
+usdToDkk = 6.76  # USD to DKK conversion rate, as of 2024-01-02 (YYYY-MM-DD)
 
 def calculate_tax_and_earnings(segment):
 	profitThisCycle = segment['Rimmediate'].sum()
@@ -33,6 +35,13 @@ def calculate_intermediate_net_earnings(df, freq):
 		net, _ = calculate_tax_and_earnings(pd.DataFrame({'Rimmediate': [periodProfit]}))
 		netProfit.append(net)
 	return np.array(netProfit).mean()
+
+def render_pbar(total, n, desc, color):
+	pbar = tqdm(total=total, desc=colored(desc, color))
+	pbar.n = n if n > 0 else 0
+	pbar.last_print_n = n if n > 0 else 0
+	pbar.refresh()
+	pbar.close()
 
 try:
 	df = pd.read_csv("log.csv")
@@ -128,12 +137,12 @@ print(f"Time to reach Ce * 3 at current rate (essentials only): {tTotalMinEssent
 
 print("")
 
-print(colored(f"Current payout for the current period: ${currentPeriodProfit:.2f} (DKK: {currentPeriodProfit * 6.97:.2f})", "yellow"))
+print(colored(f"Current payout for the current period: ${currentPeriodProfit:.2f} (DKK: {currentPeriodProfit * usdToDkk:.2f})", "yellow"))
 if netProjectedProfitEndOfCurrentPeriod > Ce:
 	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} by the end of the current period.", "blue"))
 	print(colored("You can afford working every other day!", "green"))
 else:
-	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * 6.97:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
+	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * usdToDkk:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
 	print(colored(f"You need to work at least {(Ce - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials!", "red", attrs=["bold", "blink"]))
 	print(colored(f"You need to work at least {(Ctotal - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials AND the tech you want!", "grey"))
 	print(colored(f"Per day, you need to work at least {((Ce - currentPeriodProfit) / netProfitAvg) / remainingDaysInPeriod:.2f} hours to afford essentials (OR {((Ce - currentPeriodProfit) / 28) / remainingDaysInPeriod:.2f} high-traffic hours)!", "red", attrs=["bold", "blink"]))
@@ -145,42 +154,14 @@ if netProjectedProfit >= Ctotal:
 else:
 	print("You cannot afford to buy essentials NOR the tech you want!")
 
-pbar = tqdm(total=Ce, desc=colored("Essentials", "red"))
-pbar.n = profitSoFar
-pbar.last_print_n = profitSoFar
-pbar.refresh()
-pbar.close()
+render_pbar(Ce, profitSoFar, "Essentials", "black")
 # budget pbars
-pbar = tqdm(total=CdebtRepayment, desc=colored("Debt Repayment", "white"))
-pbar.n = (profitSoFar - Ce if profitSoFar - Ce > 0 else 0)
-pbar.last_print_n = (profitSoFar - Ce if profitSoFar - Ce > 0 else 0)
-pbar.refresh()
-pbar.close()
-pbar = tqdm(total=Ctech, desc=colored("Tech", "green"))
-pbar.n = (profitSoFar - Ce - CdebtRepayment if profitSoFar - Ce - CdebtRepayment > 0 else 0)
-pbar.last_print_n = (profitSoFar - Ce - CdebtRepayment if profitSoFar - Ce - CdebtRepayment > 0 else 0)
-pbar.refresh()
-pbar.close()
-pbar = tqdm(total=Cdating, desc=colored("Dating", "magenta"))
-pbar.n = (profitSoFar - Ce - Ctech - CdebtRepayment if profitSoFar - Ce - Ctech - CdebtRepayment > 0 else 0)
-pbar.last_print_n = (profitSoFar - Ce - Ctech - CdebtRepayment if profitSoFar - Ce - Ctech - CdebtRepayment > 0 else 0)
-pbar.refresh()
-pbar.close()
-pbar = tqdm(total=Cbuf, desc=colored("Buffer", "yellow"))
-pbar.n = (profitSoFar - Ce - Ctech - Cdating - CdebtRepayment if profitSoFar - Ce - Ctech - Cdating - CdebtRepayment > 0 else 0)
-pbar.last_print_n = (profitSoFar - Ce - Ctech - Cdating - CdebtRepayment if profitSoFar - Ce - Ctech - Cdating - CdebtRepayment > 0 else 0)
-pbar.refresh()
-pbar.close()
+render_pbar(CdebtRepayment, profitSoFar - Ce, "Debt Repayment", "white")
+render_pbar(Ctech, profitSoFar - Ce - CdebtRepayment, "Tech", "green")
+render_pbar(Cdating, profitSoFar - Ce - Ctech - CdebtRepayment, "Dating", "magenta")
+render_pbar(Cbuf, profitSoFar - Ce - Ctech - Cdating - CdebtRepayment, "Buffer", "yellow")
 # absolute pbar for motivation
-pbar = tqdm(total=Ctotal, desc=colored("Total", "grey"))
-pbar.n = profitSoFar
-pbar.last_print_n = profitSoFar
-pbar.refresh()
-pbar.close()
+render_pbar(Ctotal, profitSoFar, "Total", "grey")
 print("")
-# maintenance pbar
-pbar = tqdm(total=1000, desc=colored("Maintenance (check-up)", "cyan"))
-pbar.n = Ttotal
-pbar.last_print_n = Ttotal
-pbar.refresh()
-pbar.close()
+# maintenance pbar - get a full medical check-up every ~6 months (1000 work hours)
+render_pbar(1000, Ttotal, "Maintenance (check-up)", "cyan")
