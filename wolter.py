@@ -12,7 +12,9 @@ ThoursWeek = 14  # total n of hours/week
 Ctech = 1500  # total cost of tech to purchase
 Ce = 1000  # total cost of monthly essentials
 Cbuf = 500  # buffer
-Ctotal = 4000  # absolute cost
+Cdating = 500  # dating budget
+CdebtRepayment = 2500  # debt repayment budget
+Ctotal = Ctech + Ce + Cbuf + Cdating + CdebtRepayment  # total cost
 taxRate = 0.46  # tax rate
 taxThreshold = 542  # tax threshold in USD
 
@@ -72,6 +74,7 @@ else:
 remainingDaysInPeriod = (periodEnd - now).days
 df["date"] = pd.to_datetime(df["dt"]).dt.date
 TtotalPerDay = df.groupby("date")["hour"].nunique()
+Ttotal = TtotalPerDay.sum()
 Tavg = TtotalPerDay.mean()
 
 grossSoFar = df['Rimmediate'].sum()
@@ -104,21 +107,21 @@ for hour, earnings in Rimmediate.items():
 
 suggestedHour = max(wMeans, key=wMeans.get)
 
-# Display results
-print(f"Total Hours to be Worked: {Ttotal}")
+print(f"Total hours already worked: {Ttotal}")
+print(f"Total hours to be worked: {Ttotal}")
 print(f"Ravg: ${Ravg:.2f}")
 print(f"Tavg: {Tavg:.2f}")
-print(f"Total Earned so Far: ${grossSoFar:.2f}")
-print(f"Net Earned so Far: ${profitSoFar:.2f}")
-print(f"Expected Profit: ${projectedGross:.2f}")
-print(f"Tax to be Paid: ${taxToPay:.2f}")
-print(f"Net Daily Profit: ${netDaily:.2f}")
-print(f"Net Weekly Profit: ${netWeekly:.2f}")
-print(f"Net Per-Period Profit: ${netProfit1 + netProfit2:.2f}")
-print(f"Net Monthly Profit: ${netMonthly:.2f}")
-print(f"Net Projected Profit (40h/week): ${netProjectedProfit40h:.2f}")
-print(f"Net Projected Profit (14h/week): ${netProjectedProfit14h:.2f}")
-print(f"Net Projected Profit: ${netProjectedProfit:.2f}")
+print(f"Total earned so sar: ${grossSoFar:.2f}")
+print(f"Net earned so sar: ${profitSoFar:.2f}")
+print(f"Expected profit: ${projectedGross:.2f}")
+print(f"Tax to be paid: ${taxToPay:.2f}")
+print(f"Net daily profit: ${netDaily:.2f}")
+print(f"Net weekly profit: ${netWeekly:.2f}")
+print(f"Net per-period profit: ${netProfit1 + netProfit2:.2f}")
+print(f"Net monthly profit: ${netMonthly:.2f}")
+print(f"Net projected profit (40h/week): ${netProjectedProfit40h:.2f}")
+print(f"Net projected profit (14h/week): ${netProjectedProfit14h:.2f}")
+print(f"Net projected profit: ${netProjectedProfit:.2f}")
 print(f"Best hour to work based on observed Rimmediate: {suggestedHour}")
 print(f"Time to reach Ctotal at current rate: {tTotalMin:.2f} hours (per week: {tTotalMin / Tweeks:.2f} hours)")
 print(f"Time to reach Ce * 3 at current rate (essentials only): {tTotalMinEssentials:.2f} hours (per week: {tTotalMinEssentials / Tweeks:.2f} hours)")
@@ -139,21 +142,45 @@ print("")
 
 if netProjectedProfit >= Ctotal:
 	print(f"If you keep up your current efficiency, you will be able to afford to buy essentials AND the tech you want by the end of week {Tweeks}!")
-	pbar = tqdm(total=Ctotal)
-	pbar.n = profitSoFar
-	pbar.last_print_n = profitSoFar
-	pbar.refresh()
-	pbar.close()
 else:
 	print("You cannot afford to buy essentials NOR the tech you want!")
-	pbar = tqdm(total=Ce, desc=colored("Essentials", "red"))
-	pbar.n = profitSoFar
-	pbar.last_print_n = profitSoFar
-	pbar.refresh()
-	pbar.close()
-	# absolute progress bar for motivation
-	pbar = tqdm(total=Ctotal, desc=colored("Total", "grey"))
-	pbar.n = profitSoFar
-	pbar.last_print_n = profitSoFar
-	pbar.refresh()
-	pbar.close()
+
+pbar = tqdm(total=Ce, desc=colored("Essentials", "red"))
+pbar.n = profitSoFar
+pbar.last_print_n = profitSoFar
+pbar.refresh()
+pbar.close()
+# budget pbars
+pbar = tqdm(total=CdebtRepayment, desc=colored("Debt Repayment", "white"))
+pbar.n = (profitSoFar - Ce if profitSoFar - Ce > 0 else 0)
+pbar.last_print_n = (profitSoFar - Ce if profitSoFar - Ce > 0 else 0)
+pbar.refresh()
+pbar.close()
+pbar = tqdm(total=Ctech, desc=colored("Tech", "green"))
+pbar.n = (profitSoFar - Ce - CdebtRepayment if profitSoFar - Ce - CdebtRepayment > 0 else 0)
+pbar.last_print_n = (profitSoFar - Ce - CdebtRepayment if profitSoFar - Ce - CdebtRepayment > 0 else 0)
+pbar.refresh()
+pbar.close()
+pbar = tqdm(total=Cdating, desc=colored("Dating", "magenta"))
+pbar.n = (profitSoFar - Ce - Ctech - CdebtRepayment if profitSoFar - Ce - Ctech - CdebtRepayment > 0 else 0)
+pbar.last_print_n = (profitSoFar - Ce - Ctech - CdebtRepayment if profitSoFar - Ce - Ctech - CdebtRepayment > 0 else 0)
+pbar.refresh()
+pbar.close()
+pbar = tqdm(total=Cbuf, desc=colored("Buffer", "yellow"))
+pbar.n = (profitSoFar - Ce - Ctech - Cdating - CdebtRepayment if profitSoFar - Ce - Ctech - Cdating - CdebtRepayment > 0 else 0)
+pbar.last_print_n = (profitSoFar - Ce - Ctech - Cdating - CdebtRepayment if profitSoFar - Ce - Ctech - Cdating - CdebtRepayment > 0 else 0)
+pbar.refresh()
+pbar.close()
+# absolute pbar for motivation
+pbar = tqdm(total=Ctotal, desc=colored("Total", "grey"))
+pbar.n = profitSoFar
+pbar.last_print_n = profitSoFar
+pbar.refresh()
+pbar.close()
+print("")
+# maintenance pbar
+pbar = tqdm(total=1000, desc=colored("Maintenance (check-up)", "cyan"))
+pbar.n = Ttotal
+pbar.last_print_n = Ttotal
+pbar.refresh()
+pbar.close()
