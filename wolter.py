@@ -165,8 +165,9 @@ render_pbar(Cbuf, profitSoFar - Ce - Ctech - Cdating - CdebtRepayment, "Buffer",
 # absolute pbar for motivation
 render_pbar(Ctotal, profitSoFar, "Total", "grey")
 print("")
-# maintenance pbar - get a full medical check-up every ~6 months (1000 work hours)
+# maintenance pbars - get a full medical check-up every ~6 months (1000 work hours)
 render_pbar(1000, Ttotal, "Maintenance (check-up)", "cyan")
+render_pbar(150, Ttotal, "Maintenance (massage)", "cyan")
 
 plt.style.use("cyberpunk")
 plt.figure(figsize=(16, 9))
