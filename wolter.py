@@ -11,14 +11,14 @@ from sklearn.linear_model import LinearRegression
 
 
 ### Constants ###
-Tweeks = 5  # total n of weeks
-ThoursWeek = 14  # total n of hours/week
-Ctech = 2000  # total cost of tech to purchase
-Ce = 2000  # total cost of monthly essentials
-Cbuf = 1000  # buffer
+Tweeks = 16  # total n of weeks
+ThoursWeek = 21  # total n of hours/week
+Cedu = 5000  # total cost of tech to purchase
+Ce = 1000  # total cost of monthly essentials
+Cbuf = 2500  # buffer
 Cdating = 1000  # dating budget
-CdebtRepayment = 2500  # debt repayment budget
-Ctotal = Ctech + Ce + Cbuf + Cdating + CdebtRepayment  # total cost
+CdebtRepayment = 3200  # debt repayment budget
+Ctotal = Cedu + (Ce * (Tweeks/4)) + Cbuf + Cdating + CdebtRepayment  # total cost
 taxRate = 0.46  # tax rate
 taxThreshold = 542  # tax threshold in USD
 usdToDkk = 6.76  # USD to DKK conversion rate, as of 2024-01-02 (YYYY-MM-DD)
@@ -84,6 +84,7 @@ else:
 	periodEnd = now.replace(day=last)#, hour=23, minute=59, second=59, microsecond=999999)
 
 remainingDaysInPeriod = (periodEnd - now).days
+print(f"Remaining days in period: {remainingDaysInPeriod}")
 df["date"] = pd.to_datetime(df["dt"]).dt.date
 TtotalPerDay = df.groupby("date")["hour"].nunique()
 Ttotal = TtotalPerDay.sum()
@@ -98,10 +99,12 @@ tTotalMinEssentials = (Ce * 3) / netProfitAvg # over entire period
 projectedGross = grossSoFar + Ttotal * df['Rimmediate'].mean()
 projectedGross40h = grossSoFar + 40 * df['Rimmediate'].mean()
 projectedGross14h = grossSoFar + 14 * df['Rimmediate'].mean()
+projectedGross21h = grossSoFar + 21 * df['Rimmediate'].mean()
 taxToPay = taxToPay1 + taxToPay2
 netProjectedProfit = projectedGross - taxToPay
 netProjectedProfit40h = projectedGross40h - taxToPay
 netProjectedProfit14h = projectedGross14h - taxToPay
+netProjectedProfit21h = projectedGross21h - taxToPay
 netProjectedProfitEndOfCurrentPeriod = (remainingDaysInPeriod * Tavg * netProfitAvg + currentPeriodProfit)
 netDaily = calculate_intermediate_net_earnings(df.copy(), 'D')
 netWeekly = calculate_intermediate_net_earnings(df.copy(), 'W')
@@ -132,6 +135,7 @@ print(f"Net weekly profit: ${netWeekly:.2f}")
 print(f"Net per-period profit: ${netProfit1 + netProfit2:.2f}")
 print(f"Net monthly profit: ${netMonthly:.2f}")
 print(f"Net projected profit (40h/week): ${netProjectedProfit40h:.2f}")
+print(f"Net projected profit (21h/week): ${netProjectedProfit21h:.2f}")
 print(f"Net projected profit (14h/week): ${netProjectedProfit14h:.2f}")
 print(f"Net projected profit: ${netProjectedProfit:.2f}")
 print(f"Best hour to work based on observed Rimmediate: {suggestedHour}")
@@ -145,7 +149,7 @@ if netProjectedProfitEndOfCurrentPeriod > Ce:
 	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} by the end of the current period.", "blue"))
 	print(colored("You can afford working every other day!", "green"))
 else:
-	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * usdToDkk:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
+	print(colored(f"At this rate ({Ravg}/{Tavg}), you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * usdToDkk:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
 	print(colored(f"You need to work at least {(Ce - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials!", "red", attrs=["bold", "blink"]))
 	print(colored(f"You need to work at least {(Ctotal - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials AND the tech you want!", "grey"))
 	print(colored(f"Per day, you need to work at least {((Ce - currentPeriodProfit) / netProfitAvg) / remainingDaysInPeriod:.2f} hours to afford essentials (OR {((Ce - currentPeriodProfit) / 28) / remainingDaysInPeriod:.2f} high-traffic hours)!", "red", attrs=["bold", "blink"]))
@@ -158,11 +162,14 @@ else:
 	print("You cannot afford to buy essentials NOR the tech you want!")
 
 render_pbar(Ce, profitSoFar, "Essentials", "black")
+if now.day <= 15 and profitSoFar < Ce:
+	print(colored("DANGER! This cycle is the rent cycle!", "red", attrs=["bold", "blink"]))
 # budget pbars
 render_pbar(CdebtRepayment, profitSoFar - Ce, "Debt Repayment", "white")
-render_pbar(Ctech, profitSoFar - Ce - CdebtRepayment, "Tech", "green")
-render_pbar(Cdating, profitSoFar - Ce - Ctech - CdebtRepayment, "Dating", "magenta")
-render_pbar(Cbuf, profitSoFar - Ce - Ctech - Cdating - CdebtRepayment, "Buffer", "yellow")
+print(colored(f"Days to pay off debt: {(CdebtRepayment + (Ce - profitSoFar)) / netDaily:.2f}", "white"))
+render_pbar(Cedu, profitSoFar - Ce - CdebtRepayment, "Tech", "green")
+render_pbar(Cdating, profitSoFar - Ce - Cedu - CdebtRepayment, "Dating", "magenta")
+render_pbar(Cbuf, profitSoFar - Ce - Cedu - Cdating - CdebtRepayment, "Buffer", "yellow")
 # absolute pbar for motivation
 render_pbar(Ctotal, profitSoFar, "Total", "grey")
 print("")
