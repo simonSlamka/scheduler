@@ -7,6 +7,7 @@ from termcolor import colored
 from calendar import monthrange
 import matplotlib.pyplot as plt
 import mplcyberpunk
+from sklearn.linear_model import LinearRegression
 
 
 ### Constants ###
