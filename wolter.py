@@ -6,7 +6,7 @@ from tqdm import tqdm
 from termcolor import colored
 from calendar import monthrange
 import matplotlib.pyplot as plt
-import mplcyberpunk
+# import mplcyberpunk
 from sklearn.linear_model import LinearRegression
 
 
@@ -149,7 +149,7 @@ if netProjectedProfitEndOfCurrentPeriod > Ce:
 	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} by the end of the current period.", "blue"))
 	print(colored("You can afford working every other day!", "green"))
 else:
-	print(colored(f"At this rate ({Ravg}/{Tavg}), you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * usdToDkk:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
+	print(colored(f"At this rate ({Ravg:.2f}/{Tavg}), you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * usdToDkk:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
 	print(colored(f"You need to work at least {(Ce - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials!", "red", attrs=["bold", "blink"]))
 	print(colored(f"You need to work at least {(Ctotal - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials AND the tech you want!", "grey"))
 	print(colored(f"Per day, you need to work at least {((Ce - currentPeriodProfit) / netProfitAvg) / remainingDaysInPeriod:.2f} hours to afford essentials (OR {((Ce - currentPeriodProfit) / 28) / remainingDaysInPeriod:.2f} high-traffic hours)!", "red", attrs=["bold", "blink"]))
@@ -162,7 +162,8 @@ else:
 	print("You cannot afford to buy essentials NOR the tech you want!")
 
 render_pbar(Ce, profitSoFar, "Essentials", "black")
-if now.day <= 15 and profitSoFar < Ce:
+render_pbar(Ce * 0.68, profitSoFar, "Rent", "black")
+if now.day <= 15 and profitSoFar < (Ce * 0.68):
 	print(colored("DANGER! This cycle is the rent cycle!", "red", attrs=["bold", "blink"]))
 # budget pbars
 render_pbar(CdebtRepayment, profitSoFar - Ce, "Debt Repayment", "white")
@@ -177,7 +178,7 @@ print("")
 render_pbar(1000, Ttotal, "Maintenance (check-up)", "cyan")
 render_pbar(150, Ttotal, "Maintenance (massage)", "cyan")
 
-plt.style.use("cyberpunk")
+# plt.style.use("cyberpunk")
 plt.figure(figsize=(16, 9))
 plt.plot(df['dt'], df['Rimmediate'], color="cyan", linewidth=0.5)
 plt.title("Hourly earnings")
@@ -185,5 +186,5 @@ plt.xlabel("Time")
 plt.ylabel("Hourly earnings")
 plt.xticks(rotation=45)
 plt.tight_layout()
-mplcyberpunk.add_glow_effects()
+# mplcyberpunk.add_glow_effects()
 plt.show()
