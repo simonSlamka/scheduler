@@ -5,9 +5,9 @@ import numpy as np
 from tqdm import tqdm
 from termcolor import colored
 from calendar import monthrange
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 # import mplcyberpunk
-from sklearn.linear_model import LinearRegression
+# from sklearn.linear_model import LinearRegression
 
 
 ### Constants ###
@@ -123,7 +123,7 @@ for hour, earnings in Rimmediate.items():
 suggestedHour = max(wMeans, key=wMeans.get)
 
 print(f"Total hours already worked: {Ttotal}")
-print(f"Total hours to be worked: {Ttotal}")
+print(f"Total hours to be worked: {Ce / (Ravg / Tavg) - Ttotal:.2f}")
 print(f"Ravg: ${Ravg:.2f}")
 print(f"Tavg: {Tavg:.2f}")
 print(f"Total earned so sar: ${grossSoFar:.2f}")
@@ -149,7 +149,7 @@ if netProjectedProfitEndOfCurrentPeriod > Ce:
 	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} by the end of the current period.", "blue"))
 	print(colored("You can afford working every other day!", "green"))
 else:
-	print(colored(f"At this rate ({Ravg:.2f}/{Tavg}), you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * usdToDkk:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
+	print(colored(f"At this rate ({Ravg:.2f}/{Tavg:.2f}), you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * usdToDkk:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
 	print(colored(f"You need to work at least {(Ce - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials!", "red", attrs=["bold", "blink"]))
 	print(colored(f"You need to work at least {(Ctotal - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials AND the tech you want!", "grey"))
 	print(colored(f"Per day, you need to work at least {((Ce - currentPeriodProfit) / netProfitAvg) / remainingDaysInPeriod:.2f} hours to afford essentials (OR {((Ce - currentPeriodProfit) / 30) / remainingDaysInPeriod:.2f} high-traffic hours)!", "red", attrs=["bold", "blink"]))
@@ -178,13 +178,13 @@ print("")
 render_pbar(1000, Ttotal, "Maintenance (check-up)", "cyan")
 render_pbar(150, Ttotal, "Maintenance (massage)", "cyan")
 
-# plt.style.use("cyberpunk")
-plt.figure(figsize=(16, 9))
-plt.plot(df['dt'], df['Rimmediate'], color="cyan", linewidth=0.5)
-plt.title("Hourly earnings")
-plt.xlabel("Time")
-plt.ylabel("Hourly earnings")
-plt.xticks(rotation=45)
-plt.tight_layout()
-# mplcyberpunk.add_glow_effects()
-plt.show()
+# # plt.style.use("cyberpunk")
+# plt.figure(figsize=(16, 9))
+# plt.plot(df['dt'], df['Rimmediate'], color="cyan", linewidth=0.5)
+# plt.title("Hourly earnings")
+# plt.xlabel("Time")
+# plt.ylabel("Hourly earnings")
+# plt.xticks(rotation=45)
+# plt.tight_layout()
+# # mplcyberpunk.add_glow_effects()
+# plt.show()
