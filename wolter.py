@@ -83,6 +83,11 @@ else:
 	last = monthrange(now.year, now.month)[1]
 	periodEnd = now.replace(day=last)#, hour=23, minute=59, second=59, microsecond=999999)
 
+all = pd.date_range(start=df['dt'].min(), end=df['dt'].max())
+all = pd.DataFrame({"dt": all})
+df = all.merge(df, on="dt", how="left")
+df["Rimmediate"].fillna(0, inplace=True)
+
 remainingDaysInPeriod = (periodEnd - now).days
 print(f"Remaining days in period: {remainingDaysInPeriod}")
 df["date"] = pd.to_datetime(df["dt"]).dt.date
