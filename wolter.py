@@ -111,9 +111,9 @@ netProjectedProfit40h = projectedGross40h - taxToPay
 netProjectedProfit14h = projectedGross14h - taxToPay
 netProjectedProfit21h = projectedGross21h - taxToPay
 netProjectedProfitEndOfCurrentPeriod = (remainingDaysInPeriod * Tavg * netProfitAvg + currentPeriodProfit)
-netDaily = calculate_intermediate_net_earnings(df.copy(), 'D')
-netWeekly = calculate_intermediate_net_earnings(df.copy(), 'W')
-netMonthly = calculate_intermediate_net_earnings(df.copy(), 'M')
+netDaily = calculate_intermediate_net_earnings(df.copy(), "D")
+netWeekly = calculate_intermediate_net_earnings(df.copy(), "W")
+netMonthly = calculate_intermediate_net_earnings(df.copy(), "M")
 
 Rimmediate = defaultdict(list)
 
