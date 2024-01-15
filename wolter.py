@@ -5,8 +5,8 @@ import numpy as np
 from tqdm import tqdm
 from termcolor import colored
 from calendar import monthrange
-# import matplotlib.pyplot as plt
-# import mplcyberpunk
+import matplotlib.pyplot as plt
+import mplcyberpunk
 # from sklearn.linear_model import LinearRegression
 
 
@@ -17,7 +17,7 @@ Cedu = 5000  # total cost of tech to purchase
 Ce = 1000  # total cost of monthly essentials
 Cbuf = 2500  # buffer
 Cdating = 1000  # dating budget
-CdebtRepayment = 3200  # debt repayment budget
+CdebtRepayment = 3500  # debt repayment budget
 Ctotal = Cedu + (Ce * (Tweeks/4)) + Cbuf + Cdating + CdebtRepayment  # total cost
 taxRate = 0.46  # tax rate
 taxThreshold = 542  # tax threshold in USD
@@ -30,12 +30,12 @@ def calculate_tax_and_earnings(segment):
 	return netProfit, taxToPay
 
 def calculate_intermediate_net_earnings(df, freq):
-	df['dt'] = pd.to_datetime(df['dt'])
-	df.set_index('dt', inplace=True)
+	df['dt'] = pd.to_datetime(df["dt"])
+	df.set_index("dt", inplace=True)
 	resampledDf = df['Rimmediate'].resample(freq).sum()
 	netProfit = []
 	for periodProfit in resampledDf:
-		net, _ = calculate_tax_and_earnings(pd.DataFrame({'Rimmediate': [periodProfit]}))
+		net, _ = calculate_tax_and_earnings(pd.DataFrame({"Rimmediate": [periodProfit]}))
 		netProfit.append(net)
 	return np.array(netProfit).mean()
 
@@ -51,12 +51,12 @@ try:
 except FileNotFoundError:
 	df = pd.DataFrame(columns=["dt", "hour", "Rimmediate"])
 
-if 'dt' in df.columns:
-	df['dt'] = pd.to_datetime(df['dt'])
-df['day'] = df['dt'].dt.day
+if "dt" in df.columns:
+	df["dt"] = pd.to_datetime(df["dt"])
+df["day"] = df["dt"].dt.day
 
-first = df[df['day'] <= 15]
-second = df[df['day'] > 15]
+first = df[df["day"] <= 15]
+second = df[df["day"] > 15]
 
 netProfit1, taxToPay1 = calculate_tax_and_earnings(first)
 netProfit2, taxToPay2 = calculate_tax_and_earnings(second)
@@ -88,7 +88,7 @@ all = pd.DataFrame({"dt": all})
 df = all.merge(df, on="dt", how="left")
 df["Rimmediate"].fillna(0, inplace=True)
 
-remainingDaysInPeriod = (periodEnd - now).days
+remainingDaysInPeriod = (periodEnd - now).days + 1
 print(f"Remaining days in period: {remainingDaysInPeriod}")
 df["date"] = pd.to_datetime(df["dt"]).dt.date
 TtotalPerDay = df.groupby("date")["hour"].nunique()
@@ -118,7 +118,7 @@ netMonthly = calculate_intermediate_net_earnings(df.copy(), "M")
 Rimmediate = defaultdict(list)
 
 for idx, row in df.iterrows():
-	Rimmediate[row.at['hour']].append(row.at['Rimmediate'])
+	Rimmediate[row.at["hour"]].append(row.at["Rimmediate"])
 
 wMeans = {}
 for hour, earnings in Rimmediate.items():
@@ -183,13 +183,19 @@ print("")
 render_pbar(1000, Ttotal, "Maintenance (check-up)", "cyan")
 render_pbar(150, Ttotal, "Maintenance (massage)", "cyan")
 
-# # plt.style.use("cyberpunk")
-# plt.figure(figsize=(16, 9))
-# plt.plot(df['dt'], df['Rimmediate'], color="cyan", linewidth=0.5)
-# plt.title("Hourly earnings")
-# plt.xlabel("Time")
-# plt.ylabel("Hourly earnings")
-# plt.xticks(rotation=45)
-# plt.tight_layout()
-# # mplcyberpunk.add_glow_effects()
+plt.style.use("cyberpunk")
+df["dt"] = pd.to_datetime(df["dt"])
+df.sort_values(by="dt", inplace=True)
+dailyGross = df.groupby(df["dt"].dt.date)["Rimmediate"].sum().fillna(0)
+movAvg = dailyGross.rolling(window=7).mean().fillna(0)
+
+fig, ax = plt.subplots()
+dailyGross.plot(kind="bar", label="Daily earnings", color="cyan", ax=ax)
+movAvg.index = dailyGross.index
+movAvg.plot(label="7-day moving average", color="orange", linewidth=5, kind="line", ax=ax)
+
+plt.title("Daily earnings")
+plt.xlabel("Date")
+plt.ylabel("USD (gross)")
+plt.legend()
 # plt.show()
