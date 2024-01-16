@@ -5,6 +5,7 @@ import numpy as np
 from tqdm import tqdm
 from termcolor import colored
 from calendar import monthrange
+from sklearn.linear_model import LinearRegression
 
 
 ### Constants ###
@@ -68,6 +69,9 @@ def get_current_cycle():
 def get_days_in_month(y, m):
 	return monthrange(y, m)[1]
 
+def predict_next_cycle_earnings(df, y, m, cycle):
+	
+
 try:
 	df = pd.read_csv("log.csv")
 	df["dt"] = pd.to_datetime(df["dt"])
@@ -120,7 +124,7 @@ workedDaysDf = df[df["Rimmediate"] > 0]
 totalDaysWorked = workedDaysDf["dt"].nunique()
 meanDailyEarnings = cumEarnings / df["dt"].nunique()
 meanDailyNetProfit = cumNetProfit / df["dt"].nunique()
-meanDailyHoursWorked = workedDaysDf["hour"].nunique() / df["dt"].nunique()
+meanDailyHoursWorked = df.groupby("dt")["hour"].nunique().sum() / df["dt"].nunique()
 
 ## current cycle
 start, end, payoutDate = get_current_cycle()
