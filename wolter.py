@@ -20,8 +20,8 @@ Cdating = 1000  # dating budget
 CdebtRepayment = 3500  # debt repayment budget
 Ctotal = Cedu + (Ce * (Tweeks/4)) + Cbuf + Cdating + CdebtRepayment  # total cost
 taxRate = 0.46  # tax rate
-taxThreshold = 542  # tax threshold in USD
-usdToDkk = 6.76  # USD to DKK conversion rate, as of 2024-01-02 (YYYY-MM-DD)
+taxThreshold = 619.43  # tax threshold in USD
+usdToDkk = 6.84  # USD to DKK conversion rate, as of 2024-01-16 (YYYY-MM-DD)
 
 def calculate_tax_and_earnings(segment):
 	profitThisCycle = segment['Rimmediate'].sum()
