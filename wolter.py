@@ -5,9 +5,6 @@ import numpy as np
 from tqdm import tqdm
 from termcolor import colored
 from calendar import monthrange
-import matplotlib.pyplot as plt
-import mplcyberpunk
-# from sklearn.linear_model import LinearRegression
 
 
 ### Constants ###
@@ -17,16 +14,16 @@ Cedu = 5000  # total cost of tech to purchase
 Ce = 1000  # total cost of monthly essentials
 Cbuf = 2500  # buffer
 Cdating = 1000  # dating budget
-CdebtRepayment = 3500  # debt repayment budget
+CdebtRepayment = 15764.76  # debt repayment budget
 Ctotal = Cedu + (Ce * (Tweeks/4)) + Cbuf + Cdating + CdebtRepayment  # total cost
 taxRate = 0.46  # tax rate
 taxThreshold = 619.43  # tax threshold in USD
 usdToDkk = 6.84  # USD to DKK conversion rate, as of 2024-01-16 (YYYY-MM-DD)
 
-def calculate_tax_and_earnings(segment):
-	profitThisCycle = segment['Rimmediate'].sum()
-	taxToPay = max(0, profitThisCycle - taxThreshold) * taxRate
-	netProfit = profitThisCycle - taxToPay
+def calculate_tax_and_earnings(cycleEarnings):
+	taxable = max(0, cycleEarnings - (taxThreshold / 2))
+	taxToPay = taxable * taxRate
+	netProfit = cycleEarnings - taxToPay
 	return netProfit, taxToPay
 
 def calculate_intermediate_net_earnings(df, freq):
@@ -39,6 +36,12 @@ def calculate_intermediate_net_earnings(df, freq):
 		netProfit.append(net)
 	return np.array(netProfit).mean()
 
+def calculate_cycle_earnings(df, y, m, cycle):
+	cycleDf = df[(df["year"] == y) & (df["month"] == m) & (df["cycle"] == cycle)]
+	earnings = cycleDf["Rimmediate"].sum()
+	netProfit, taxToPay = calculate_tax_and_earnings(earnings)
+	return netProfit, taxToPay
+
 def render_pbar(total, n, desc, color):
 	pbar = tqdm(total=total, desc=colored(desc, color))
 	pbar.n = n if n > 0 else 0
@@ -46,21 +49,39 @@ def render_pbar(total, n, desc, color):
 	pbar.refresh()
 	pbar.close()
 
+def get_current_cycle():
+	today = datetime.now()
+	mid = 15
+	last = monthrange(today.year, today.month)[1]
+
+	if today.day <= mid:
+		start = today.replace(day=1)
+		end = today.replace(day=mid)
+		payoutDate = today.replace(day=25) if today.day != mid else (today.replace(day=1) + timedelta(months=1)).replace(day=25)
+	else:
+		start = today.replace(day=mid + 1)
+		end = today.replace(day=last)
+		payoutDate = today.replace(day=10, month=today.month + 1) if today.month != 12 else today.replace(day=10, month=1, year=today.year + 1)
+
+	return start, end, payoutDate
+
+def get_days_in_month(y, m):
+	return monthrange(y, m)[1]
+
 try:
 	df = pd.read_csv("log.csv")
+	df["dt"] = pd.to_datetime(df["dt"])
 except FileNotFoundError:
 	df = pd.DataFrame(columns=["dt", "hour", "Rimmediate"])
 
 if "dt" in df.columns:
-	df["dt"] = pd.to_datetime(df["dt"])
-df["day"] = df["dt"].dt.day
+	df["month"] = df["dt"].dt.month
+	df["year"] = df["dt"].dt.year
+	df["cycle"] = np.where(df["dt"].dt.day <= 15, 1, 2)
 
-first = df[df["day"] <= 15]
-second = df[df["day"] > 15]
-
-netProfit1, taxToPay1 = calculate_tax_and_earnings(first)
-netProfit2, taxToPay2 = calculate_tax_and_earnings(second)
-currentPeriodProfit = [netProfit1, netProfit2][datetime.now().day > 15]
+start, end, payoutDate = get_current_cycle()
+currentCycle = 1 if datetime.now().day <= 15 else 2
+currentPeriodProfit, currentPeriodTaxToPay = calculate_cycle_earnings(df, datetime.now().year, datetime.now().month, currentCycle)
 
 while True:
 	hoursInput = input("Hour|Rimmediate (\"stop\" to break): ")
@@ -69,133 +90,102 @@ while True:
 	timeNow = datetime.now().strftime("%Y-%m-%d")
 	hour, Rimmediate = hoursInput.split("|")
 	Rimmediate = float(Rimmediate)
-	df = pd.concat([df, pd.DataFrame({"dt": [timeNow], "hour": [hour], "Rimmediate": [Rimmediate]}).dropna()], ignore_index=True, sort=False)
+	df = pd.concat([df, pd.DataFrame({"dt": [timeNow], "hour": [hour], "Rimmediate": [Rimmediate], "month": [datetime.now().month], "year": [datetime.now().year], "cycle": [currentCycle]}).dropna()], ignore_index=True, sort=False)
 
 df.to_csv("log.csv", index=False)
 
-Ttotal = Tweeks * ThoursWeek - len(df)
+Ttotal = Tweeks * ThoursWeek - len(df)  # total hours to work
 
-now = datetime.now().date()
+if not df.empty:
+	all = pd.date_range(start=df['dt'].min(), end=df['dt'].max())
+	all = pd.DataFrame({"dt": all})
+	df = all.merge(df, on="dt", how="left")
+	df["Rimmediate"].fillna(0, inplace=True)
 
-if now.day <= 15:
-	periodEnd = now.replace(day=15)#, hour=23, minute=59, second=59, microsecond=999999)
+# calc earnings and stats (including means and running avgs) for both current cylce, all until now, and future
+## totals
+cumEarnings = 0
+cumNetProfit = 0
+cumTaxToPay = 0
+
+for year in df["year"].unique():
+	for month in df["month"].unique():
+		for cycle in [1, 2]:
+			netProfit, taxToPay = calculate_cycle_earnings(df, year, month, cycle)
+			cumNetProfit += netProfit
+			cumTaxToPay += taxToPay
+			cycleDf = df[(df["year"] == year) & (df["month"] == month) & (df["cycle"] == cycle)]
+			cumEarnings += cycleDf["Rimmediate"].sum()
+workedDaysDf = df[df["Rimmediate"] > 0]
+totalDaysWorked = workedDaysDf["dt"].nunique()
+meanDailyEarnings = cumEarnings / df["dt"].nunique()
+meanDailyNetProfit = cumNetProfit / df["dt"].nunique()
+meanDailyHoursWorked = workedDaysDf["hour"].nunique() / df["dt"].nunique()
+
+## current cycle
+start, end, payoutDate = get_current_cycle()
+y = datetime.now().year
+m = datetime.now().month
+cycle = 1 if datetime.now().day <= 15 else 2
+currentCycleDf = df[(df["year"] == y) & (df["month"] == m) & (df["cycle"] == cycle)]
+currentCycleEarnings = currentCycleDf["Rimmediate"].sum()
+currentCycleNetProfit, currentCycleTaxToPay = calculate_cycle_earnings(df, y, m, cycle)
+currentCycleMeanEarnings = currentCycleEarnings / currentCycleDf["dt"].nunique() if not currentCycleDf.empty else 0
+
+## future
+# TODO: calculate future earnings using predictive models (LR, NN, etc.)
+
+if currentCycleDf["dt"].nunique() > 0:
+### show stats ###
+	print(colored(f"Current cycle: {start.strftime('%Y-%m-%d')} - {end.strftime('%Y-%m-%d')}", "white"))
+	print(colored(f"Current cycle earnings: {currentCycleEarnings:.2f} USD ({currentCycleEarnings * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle net profit: {currentCycleNetProfit:.2f} USD ({currentCycleNetProfit * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle tax to pay: {currentCycleTaxToPay:.2f} USD ({currentCycleTaxToPay * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle mean earnings: {currentCycleMeanEarnings:.2f} USD ({currentCycleMeanEarnings * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle mean net profit: {currentCycleNetProfit / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleNetProfit / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
+	try:
+		print(colored(f"Current cycle mean tax to pay: {currentCycleTaxToPay / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleTaxToPay / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
+	except ZeroDivisionError:
+		print(colored(f"Current cycle mean tax to pay: 0 USD (0 DKK)", "white"))
+	print(colored(f"Current cycle mean earnings per hour: {currentCycleEarnings / currentCycleDf['hour'].nunique():.2f} USD ({(currentCycleEarnings / currentCycleDf['hour'].nunique()) * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle mean net profit per hour: {currentCycleNetProfit / currentCycleDf['hour'].nunique():.2f} USD ({(currentCycleNetProfit / currentCycleDf['hour'].nunique()) * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle mean earnings per day: {currentCycleEarnings / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleEarnings / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle mean net profit per day: {currentCycleNetProfit / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleNetProfit / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle mean earnings per week: {currentCycleEarnings / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleEarnings / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle mean net profit per week: {currentCycleNetProfit / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleNetProfit / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle mean earnings per month: {currentCycleEarnings / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleEarnings / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
+	print(colored(f"Current cycle mean net profit per month: {currentCycleNetProfit / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleNetProfit / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK\n", "white"))
 else:
-	last = monthrange(now.year, now.month)[1]
-	periodEnd = now.replace(day=last)#, hour=23, minute=59, second=59, microsecond=999999)
+	print(colored("No data for current cycle\n", "red"))
 
-all = pd.date_range(start=df['dt'].min(), end=df['dt'].max())
-all = pd.DataFrame({"dt": all})
-df = all.merge(df, on="dt", how="left")
-df["Rimmediate"].fillna(0, inplace=True)
+print(colored(f"Total earnings: {cumEarnings:.2f} USD ({cumEarnings * usdToDkk:.2f} DKK)", "white"))
+print(colored(f"Total net profit: {cumNetProfit:.2f} USD ({cumNetProfit * usdToDkk:.2f} DKK)", "white"))
+print(colored(f"Total tax to pay: {cumTaxToPay:.2f} USD ({cumTaxToPay * usdToDkk:.2f} DKK)", "white"))
+print(colored(f"Total days worked: {totalDaysWorked}", "white"))
+print(colored(f"Total hours worked: {len(workedDaysDf)}\n", "white"))
 
-remainingDaysInPeriod = (periodEnd - now).days + 1
-print(f"Remaining days in period: {remainingDaysInPeriod}")
-df["date"] = pd.to_datetime(df["dt"]).dt.date
-TtotalPerDay = df.groupby("date")["hour"].nunique()
-Ttotal = TtotalPerDay.sum()
-Tavg = TtotalPerDay.mean()
+## means ##
+print(colored(f"Mean daily earnings: {meanDailyEarnings:.2f} USD ({meanDailyEarnings * usdToDkk:.2f} DKK)", "white"))
+print(colored(f"Mean daily net profit: {meanDailyNetProfit:.2f} USD ({meanDailyNetProfit * usdToDkk:.2f} DKK)", "white"))
+print(colored(f"Mean daily hours worked: {meanDailyHoursWorked:.2f}\n", "white"))
 
-grossSoFar = df['Rimmediate'].sum()
-profitSoFar = netProfit1 + netProfit2
-Ravg = df['Rimmediate'].mean()
-netProfitAvg = Ravg - max(0, Ravg - taxThreshold) * taxRate
-tTotalMin = Ctotal / netProfitAvg
-tTotalMinEssentials = (Ce * 3) / netProfitAvg # over entire period
-projectedGross = grossSoFar + Ttotal * df['Rimmediate'].mean()
-projectedGross40h = grossSoFar + 40 * df['Rimmediate'].mean()
-projectedGross14h = grossSoFar + 14 * df['Rimmediate'].mean()
-projectedGross21h = grossSoFar + 21 * df['Rimmediate'].mean()
-taxToPay = taxToPay1 + taxToPay2
-netProjectedProfit = projectedGross - taxToPay
-netProjectedProfit40h = projectedGross40h - taxToPay
-netProjectedProfit14h = projectedGross14h - taxToPay
-netProjectedProfit21h = projectedGross21h - taxToPay
-netProjectedProfitEndOfCurrentPeriod = (remainingDaysInPeriod * Tavg * netProfitAvg + currentPeriodProfit)
-netDaily = calculate_intermediate_net_earnings(df.copy(), "D")
-netWeekly = calculate_intermediate_net_earnings(df.copy(), "W")
-netMonthly = calculate_intermediate_net_earnings(df.copy(), "M")
 
-Rimmediate = defaultdict(list)
 
-for idx, row in df.iterrows():
-	Rimmediate[row.at["hour"]].append(row.at["Rimmediate"])
 
-wMeans = {}
-for hour, earnings in Rimmediate.items():
-	wMean = sum(earnings) / len(earnings)
-	wMeans[hour] = wMean
 
-suggestedHour = max(wMeans, key=wMeans.get)
-
-print(f"Total hours already worked: {Ttotal}")
-print(f"Total hours to be worked: {Ce / (Ravg / Tavg) - Ttotal:.2f}")
-print(f"Ravg: ${Ravg:.2f}")
-print(f"Tavg: {Tavg:.2f}")
-print(f"Total earned so sar: ${grossSoFar:.2f}")
-print(f"Net earned so sar: ${profitSoFar:.2f}")
-print(f"Expected profit: ${projectedGross:.2f}")
-print(f"Tax to be paid: ${taxToPay:.2f}")
-print(f"Net daily profit: ${netDaily:.2f}")
-print(f"Net weekly profit: ${netWeekly:.2f}")
-print(f"Net per-period profit: ${netProfit1 + netProfit2:.2f}")
-print(f"Net monthly profit: ${netMonthly:.2f}")
-print(f"Net projected profit (40h/week): ${netProjectedProfit40h:.2f}")
-print(f"Net projected profit (21h/week): ${netProjectedProfit21h:.2f}")
-print(f"Net projected profit (14h/week): ${netProjectedProfit14h:.2f}")
-print(f"Net projected profit: ${netProjectedProfit:.2f}")
-print(f"Best hour to work based on observed Rimmediate: {suggestedHour}")
-print(f"Time to reach Ctotal at current rate: {tTotalMin:.2f} hours (per week: {tTotalMin / Tweeks:.2f} hours)")
-print(f"Time to reach Ce * 3 at current rate (essentials only): {tTotalMinEssentials:.2f} hours (per week: {tTotalMinEssentials / Tweeks:.2f} hours)")
-
-print("")
-
-print(colored(f"Current payout for the current period: ${currentPeriodProfit:.2f} (DKK: {currentPeriodProfit * usdToDkk:.2f})", "yellow"))
-if netProjectedProfitEndOfCurrentPeriod > Ce:
-	print(colored(f"At this rate, you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} by the end of the current period.", "blue"))
-	print(colored("You can afford working every other day!", "green"))
-else:
-	print(colored(f"At this rate ({Ravg:.2f}/{Tavg:.2f}), you will have earned ${netProjectedProfitEndOfCurrentPeriod:.2f} (DKK: {netProjectedProfitEndOfCurrentPeriod * usdToDkk:.2f}) by the end of the current period.", "white", attrs=["bold", "underline", "blink"]))
-	print(colored(f"You need to work at least {(Ce - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials!", "red", attrs=["bold", "blink"]))
-	print(colored(f"You need to work at least {(Ctotal - currentPeriodProfit) / netProfitAvg:.2f} additional hours to afford essentials AND the tech you want!", "grey"))
-	print(colored(f"Per day, you need to work at least {((Ce - currentPeriodProfit) / netProfitAvg) / remainingDaysInPeriod:.2f} hours to afford essentials (OR {((Ce - currentPeriodProfit) / 30) / remainingDaysInPeriod:.2f} high-traffic hours)!", "red", attrs=["bold", "blink"]))
-
-print("")
-
-if netProjectedProfit >= Ctotal:
-	print(f"If you keep up your current efficiency, you will be able to afford to buy essentials AND the tech you want by the end of week {Tweeks}!")
-else:
-	print("You cannot afford to buy essentials NOR the tech you want!")
-
-render_pbar(Ce, profitSoFar, "Essentials", "black")
-render_pbar(Ce * 0.68, profitSoFar, "Rent", "black")
-if now.day <= 15 and profitSoFar < (Ce * 0.68):
-	print(colored("DANGER! This cycle is the rent cycle!", "red", attrs=["bold", "blink"]))
-# budget pbars
-render_pbar(CdebtRepayment, profitSoFar - Ce, "Debt Repayment", "white")
-print(colored(f"Days to pay off debt: {(CdebtRepayment + (Ce - profitSoFar)) / netDaily:.2f}", "white"))
-render_pbar(Cedu, profitSoFar - Ce - CdebtRepayment, "Tech", "green")
-render_pbar(Cdating, profitSoFar - Ce - Cedu - CdebtRepayment, "Dating", "magenta")
-render_pbar(Cbuf, profitSoFar - Ce - Cedu - Cdating - CdebtRepayment, "Buffer", "yellow")
-# absolute pbar for motivation
-render_pbar(Ctotal, profitSoFar, "Total", "grey")
-print("")
-# maintenance pbars - get a full medical check-up every ~6 months (1000 work hours)
-render_pbar(1000, Ttotal, "Maintenance (check-up)", "cyan")
-render_pbar(150, Ttotal, "Maintenance (massage)", "cyan")
-
-plt.style.use("cyberpunk")
-df["dt"] = pd.to_datetime(df["dt"])
-df.sort_values(by="dt", inplace=True)
-dailyGross = df.groupby(df["dt"].dt.date)["Rimmediate"].sum().fillna(0)
-movAvg = dailyGross.rolling(window=7).mean().fillna(0)
-
-fig, ax = plt.subplots()
-dailyGross.plot(kind="bar", label="Daily earnings", color="cyan", ax=ax)
-movAvg.index = dailyGross.index
-movAvg.plot(label="7-day moving average", color="orange", linewidth=5, kind="line", ax=ax)
-
-plt.title("Daily earnings")
-plt.xlabel("Date")
-plt.ylabel("USD (gross)")
-plt.legend()
-# plt.show()
+# render_pbar(Ce, profitSoFar, "Essentials", "black")
+# render_pbar(Ce * 0.68, profitSoFar, "Rent", "black")
+# if now.day <= 15 and profitSoFar < (Ce * 0.68):
+# 	print(colored("DANGER! This cycle is the rent cycle!", "red", attrs=["bold", "blink"]))
+# # budget pbars
+# render_pbar(CdebtRepayment, profitSoFar - Ce, "Debt Repayment", "white")
+# print(colored(f"Days to pay off debt: {(CdebtRepayment + (Ce - profitSoFar)) / netDaily:.2f}", "white"))
+# render_pbar(Cedu, profitSoFar - Ce - CdebtRepayment, "Tech", "green")
+# render_pbar(Cdating, profitSoFar - Ce - Cedu - CdebtRepayment, "Dating", "magenta")
+# render_pbar(Cbuf, profitSoFar - Ce - Cedu - Cdating - CdebtRepayment, "Buffer", "yellow")
+# # absolute pbar for motivation
+# render_pbar(Ctotal, profitSoFar, "Total", "grey")
+# print("")
+# # maintenance pbars - get a full medical check-up every ~6 months (1000 work hours)
+# render_pbar(1000, Ttotal, "Maintenance (check-up)", "cyan")
+# render_pbar(150, Ttotal, "Maintenance (massage)", "cyan")
