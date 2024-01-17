@@ -70,7 +70,7 @@ def get_days_in_month(y, m):
 	return monthrange(y, m)[1]
 
 def predict_next_cycle_earnings(df, y, m, cycle):
-	
+	pass
 
 try:
 	df = pd.read_csv("log.csv")
