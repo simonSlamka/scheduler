@@ -6,6 +6,10 @@ from tqdm import tqdm
 from termcolor import colored
 from calendar import monthrange
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 
 ### Constants ###
@@ -69,8 +73,37 @@ def get_current_cycle():
 def get_days_in_month(y, m):
 	return monthrange(y, m)[1]
 
+def get_cycle_dates(y, m, cycle):
+	if cycle == 1:
+		start = datetime(y, m, 1)
+		mid = datetime(y, m, 15)
+		return start, mid
+	else:
+		mid = datetime(y, m, 16)
+		end = datetime(y, m, get_days_in_month(y, m))
+		return mid, end
+
 def predict_next_cycle_earnings(df, y, m, cycle):
-	pass
+	dailies = df.copy()
+	dailies = dailies.groupby("dt")["Rimmediate"].sum().reset_index() # sum earnings for each day (this also fills days with no earnings with 0 to prevent NaNs)
+	dailies["dt"] = pd.to_datetime(dailies["dt"]).apply(lambda x: x.toordinal()) # convert dates to ordinal
+	
+	if dailies.empty:
+		raise ValueError("No data to predict from")
+
+	# debug print dailies
+	print(dailies[["dt", "Rimmediate"]]) # in ordinals
+
+	model = LinearRegression()
+	model.fit(dailies[["dt"]], dailies["Rimmediate"])
+
+	start, end = get_cycle_dates(y, m, cycle)
+	next = [date.toordinal() for date in pd.date_range(start=start, end=end)]
+	logging.info(f"Predicted cycle: {start.strftime('%Y-%m-%d')} - {end.strftime('%Y-%m-%d')}")
+
+	preds = model.predict(np.array(next).reshape(-1, 1))
+	sum = np.sum(preds)
+	return sum
 
 try:
 	df = pd.read_csv("log.csv")
@@ -136,9 +169,6 @@ currentCycleEarnings = currentCycleDf["Rimmediate"].sum()
 currentCycleNetProfit, currentCycleTaxToPay = calculate_cycle_earnings(df, y, m, cycle)
 currentCycleMeanEarnings = currentCycleEarnings / currentCycleDf["dt"].nunique() if not currentCycleDf.empty else 0
 
-## future
-# TODO: calculate future earnings using predictive models (LR, NN, etc.)
-
 if currentCycleDf["dt"].nunique() > 0:
 ### show stats ###
 	print(colored(f"Current cycle: {start.strftime('%Y-%m-%d')} - {end.strftime('%Y-%m-%d')}", "white"))
@@ -173,14 +203,22 @@ print(colored(f"Mean daily earnings: {meanDailyEarnings:.2f} USD ({meanDailyEarn
 print(colored(f"Mean daily net profit: {meanDailyNetProfit:.2f} USD ({meanDailyNetProfit * usdToDkk:.2f} DKK)", "white"))
 print(colored(f"Mean daily hours worked: {meanDailyHoursWorked:.2f}\n", "white"))
 
+## preds ##
+thisCyclePred = predict_next_cycle_earnings(df, y, m, cycle)
+# pay tax on predicted earnings
+thisCyclePreds, taxToPay = calculate_tax_and_earnings(thisCyclePred)
+print(colored(f"Predicted earnings for this cycle: {thisCyclePred:.2f} USD - {taxToPay:.2f} USD = {thisCyclePreds:.2f} USD ({thisCyclePreds * usdToDkk:.2f} DKK)", "white"))
+nextCyclePred = predict_next_cycle_earnings(df, y, m + 1 if cycle == 2 else m, 1 if cycle == 2 else 2)
+# pay tax on predicted earnings
+nextCyclePreds, taxToPay = calculate_tax_and_earnings(nextCyclePred)
+print(colored(f"Predicted earnings for next cycle: {nextCyclePred:.2f} USD - {taxToPay:.2f} USD = {nextCyclePreds:.2f} USD ({nextCyclePreds * usdToDkk:.2f} DKK)", "white"))
 
+print(colored(f"Days to repay debt: {(CdebtRepayment + Ce) / meanDailyNetProfit:.2f}", "white"))
 
-
-
-# render_pbar(Ce, profitSoFar, "Essentials", "black")
-# render_pbar(Ce * 0.68, profitSoFar, "Rent", "black")
-# if now.day <= 15 and profitSoFar < (Ce * 0.68):
-# 	print(colored("DANGER! This cycle is the rent cycle!", "red", attrs=["bold", "blink"]))
+render_pbar(Ce, currentCycleNetProfit, "Essentials", "black")
+if  currentCycle == 1:
+	render_pbar(Ce * 0.68, currentCycleNetProfit, "Rent", "black")
+	print(colored("DANGER! This cycle is the rent cycle!", "red", attrs=["bold", "blink"]))
 # # budget pbars
 # render_pbar(CdebtRepayment, profitSoFar - Ce, "Debt Repayment", "white")
 # print(colored(f"Days to pay off debt: {(CdebtRepayment + (Ce - profitSoFar)) / netDaily:.2f}", "white"))
