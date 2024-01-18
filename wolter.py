@@ -91,9 +91,6 @@ def predict_next_cycle_earnings(df, y, m, cycle):
 	if dailies.empty:
 		raise ValueError("No data to predict from")
 
-	# debug print dailies
-	print(dailies[["dt", "Rimmediate"]]) # in ordinals
-
 	model = LinearRegression()
 	model.fit(dailies[["dt"]], dailies["Rimmediate"])
 
