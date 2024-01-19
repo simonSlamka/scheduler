@@ -6,7 +6,9 @@ from tqdm import tqdm
 from termcolor import colored
 from calendar import monthrange
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.svm import SVR
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -116,8 +118,18 @@ def predict_cycle_earnings(df, y, m, cycle):
 	if dailies.empty:
 		raise ValueError("No data to predict from")
 
-	model = LinearRegression()
-	model.fit(dailies[["dt"]], dailies["Rimmediate"])
+	linreg = LinearRegression()
+	linreg.fit(dailies[["dt"]], dailies["Rimmediate"])
+
+	dtree = DecisionTreeRegressor(max_depth=3)
+	dtree.fit(dailies[["dt"]], dailies["Rimmediate"])
+
+	rforest = RandomForestRegressor()
+	rforest.fit(dailies[["dt"]], dailies["Rimmediate"])
+
+	# TODO: tune hyperparams
+	svm = SVR(kernel="rbf", C=100, gamma=0.15, epsilon=.1) # C is the penalty parameter of the error term, gamma is the kernel coefficient for rbf, poly and sigmoid, and epsilon is the epsilon in the epsilon-SVR model
+	svm.fit(dailies[["dt"]], dailies["Rimmediate"])
 
 	start, end = get_cycle_dates(y, m, cycle)
 	next = pd.DataFrame([date.toordinal() for date in pd.date_range(start, end)], columns=["dt"])
@@ -125,9 +137,16 @@ def predict_cycle_earnings(df, y, m, cycle):
 
 	logging.debug(f"Last date in dataset: {datetime.fromordinal(dailies['dt'].max())} with an Rimmediate of {dailies[dailies['dt'] == dailies['dt'].max()]['Rimmediate'].values[0]}")
 
-	preds = model.predict(next)
-	sum = np.sum(preds)
-	return sum
+	preds = {"linreg": linreg.predict(next), "dtree": dtree.predict(next), "rforest": rforest.predict(next), "svm": svm.predict(next)}
+
+	pred = np.array(list({key: val.sum() for key, val in preds.items()}.values())).mean()
+
+	# if any model's pred is too far from the mean, throw a warning
+	for model, modelPred in preds.items():
+		if abs(modelPred.sum() - pred) > 0.75 * pred:
+			logging.warning(f"Predicted earnings for {model} are too far from the mean: {modelPred.sum()}")
+
+	return pred
 
 try:
 	df = pd.read_csv("log.csv")
@@ -244,21 +263,22 @@ print(colored(f"Predicted earnings for next cycle: {nextCyclePred:.2f} USD - {ta
 # pred = what_would_happen_if_i_didnt_work_on(date, df)
 # print(colored(f"Predicted earnings if I didn't work on {date.strftime('%Y-%m-%d')}: {pred[0]:.2f} USD ({pred[0] * usdToDkk:.2f} DKK)", "white"))
 
-print(colored(f"Days to repay debt: {(CdebtRepayment + Ce) / meanDailyNetProfit:.2f}", "white"))
+print(colored(f"Days to repay debt at current pace: {(CdebtRepayment + Ce) / meanDailyNetProfit:.2f}", "white"))
+print(colored(f"Days to repay debt at predicted pace: {(CdebtRepayment + Ce) / (thisCyclePreds / 15):.2f}", "white"))
 
 render_pbar(Ce, currentCycleNetProfit, "Essentials", "black")
 if  currentCycle == 1:
 	render_pbar(Ce * 0.68, currentCycleNetProfit, "Rent", "black")
 	print(colored("DANGER! This cycle is the rent cycle!", "red", attrs=["bold", "blink"]))
-# # budget pbars
-# render_pbar(CdebtRepayment, profitSoFar - Ce, "Debt Repayment", "white")
-# print(colored(f"Days to pay off debt: {(CdebtRepayment + (Ce - profitSoFar)) / netDaily:.2f}", "white"))
-# render_pbar(Cedu, profitSoFar - Ce - CdebtRepayment, "Tech", "green")
-# render_pbar(Cdating, profitSoFar - Ce - Cedu - CdebtRepayment, "Dating", "magenta")
-# render_pbar(Cbuf, profitSoFar - Ce - Cedu - Cdating - CdebtRepayment, "Buffer", "yellow")
-# # absolute pbar for motivation
-# render_pbar(Ctotal, profitSoFar, "Total", "grey")
-# print("")
-# # maintenance pbars - get a full medical check-up every ~6 months (1000 work hours)
-# render_pbar(1000, Ttotal, "Maintenance (check-up)", "cyan")
-# render_pbar(150, Ttotal, "Maintenance (massage)", "cyan")
+
+# budget progress bars
+render_pbar(CdebtRepayment, currentCycleNetProfit - Ce, "Debt Repayment", "white")
+render_pbar(Cedu, currentCycleNetProfit - Ce - CdebtRepayment, "Tech", "green")
+render_pbar(Cdating, currentCycleNetProfit - Ce - Cedu - CdebtRepayment, "Dating", "magenta")
+render_pbar(Cbuf, currentCycleNetProfit - Ce - Cedu - Cdating - CdebtRepayment, "Buffer", "yellow")
+# absolute progress bar for motivation
+render_pbar(Ctotal, currentCycleNetProfit, "Total", "grey")
+print("")
+# maintenance progress bars - get a full medical check-up every ~6 months (1000 work hours)
+render_pbar(1000, len(workedDaysDf), "Maintenance (check-up)", "cyan")
+render_pbar(150, len(workedDaysDf), "Maintenance (massage)", "cyan")
