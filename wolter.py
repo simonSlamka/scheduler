@@ -18,11 +18,13 @@ logging.basicConfig(level=logging.INFO)
 Tweeks = 16  # total n of weeks
 ThoursWeek = 21  # total n of hours/week
 Cedu = 5000  # total cost of tech to purchase
-Ce = 1000  # total cost of monthly essentials
 Cbuf = 2500  # buffer
 Cdating = 1000  # dating budget
 CdebtRepayment = 11764.76  # debt repayment budget
-Ctotal = Cedu + (Ce * (Tweeks/4)) + Cbuf + Cdating + CdebtRepayment  # total cost
+CdebtRepaymentSeg1 = CdebtRepayment * 0.11 # debt repayment budget, segment 1
+CdebtRepaymentSeg2 = CdebtRepayment * 0.11 # debt repayment budget, segment 2
+CdebtRepaymentSeg3 = CdebtRepayment * 0.15 # debt repayment budget, segment 3
+CdebtRepaymentSeg4 = CdebtRepayment * 0.63 # debt repayment budget, segment 4
 taxRate = 0.46  # tax rate
 taxThreshold = 619.43  # tax threshold in USD
 usdToDkk = 6.84  # USD to DKK conversion rate, as of 2024-01-16 (YYYY-MM-DD)
@@ -150,7 +152,7 @@ def predict_cycle_earnings(df, y, m, cycle):
 
 try:
 	df = pd.read_csv("log.csv")
-	df["dt"] = pd.to_datetime(df["dt"])
+	df["dt"] = pd.to_datetime(df["dt"]).dt.strftime("%Y-%m-%d")
 except FileNotFoundError:
 	df = pd.DataFrame(columns=["dt", "hour", "Rimmediate"])
 
@@ -175,6 +177,8 @@ while True:
 df.to_csv("log.csv", index=False)
 
 Ttotal = Tweeks * ThoursWeek - len(df)  # total hours to work
+Ce = 1000 if currentCycle == 1 else 300
+Ctotal = Cedu + (Ce * (Tweeks/4)) + Cbuf + Cdating + CdebtRepayment  # total cost
 
 if not df.empty:
 	all = pd.date_range(start=df["dt"].min(), end=df["dt"].max() + timedelta(days=1) if datetime.now().day != df["dt"].max().day else df["dt"].max()) # add one day if today is not the last day in the dataset
@@ -265,6 +269,14 @@ print(colored(f"Predicted earnings for next cycle: {nextCyclePred:.2f} USD - {ta
 
 print(colored(f"Days to repay debt at current pace: {(CdebtRepayment + Ce) / meanDailyNetProfit:.2f}", "white"))
 print(colored(f"Days to repay debt at predicted pace: {(CdebtRepayment + Ce) / (thisCyclePreds / 15):.2f}", "white"))
+print(colored(f"Days to repay segment 1 of debt at current pace: {(CdebtRepaymentSeg1 + Ce) / meanDailyNetProfit:.2f}", "white"))
+print(colored(f"Days to repay segment 1 of debt at predicted pace: {(CdebtRepaymentSeg1 + Ce) / (thisCyclePreds / 15):.2f}", "white"))
+print(colored(f"Days to repay segment 2 of debt at current pace: {(CdebtRepaymentSeg2 + Ce + CdebtRepaymentSeg1) / meanDailyNetProfit:.2f}", "white"))
+print(colored(f"Days to repay segment 2 of debt at predicted pace: {(CdebtRepaymentSeg2 + Ce + CdebtRepaymentSeg1) / (thisCyclePreds / 15):.2f}", "white"))
+print(colored(f"Days to repay segment 3 of debt at current pace: {(CdebtRepaymentSeg3 + Ce + CdebtRepaymentSeg2 + CdebtRepaymentSeg1) / meanDailyNetProfit:.2f}", "white"))
+print(colored(f"Days to repay segment 3 of debt at predicted pace: {(CdebtRepaymentSeg3 + Ce + CdebtRepaymentSeg2 + CdebtRepaymentSeg1) / (thisCyclePreds / 15):.2f}", "white"))
+print(colored(f"Days to repay segment 4 of debt at current pace: {(CdebtRepaymentSeg4 + Ce + CdebtRepaymentSeg3 + CdebtRepaymentSeg2 + CdebtRepaymentSeg1) / meanDailyNetProfit:.2f}", "white"))
+print(colored(f"Days to repay segment 4 of debt at predicted pace: {(CdebtRepaymentSeg4 + Ce + CdebtRepaymentSeg3 + CdebtRepaymentSeg2 + CdebtRepaymentSeg1) / (thisCyclePreds / 15):.2f}", "white"))
 
 render_pbar(Ce, currentCycleNetProfit, "Essentials", "black")
 if  currentCycle == 1:
