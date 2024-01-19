@@ -19,7 +19,7 @@ Cedu = 5000  # total cost of tech to purchase
 Ce = 1000  # total cost of monthly essentials
 Cbuf = 2500  # buffer
 Cdating = 1000  # dating budget
-CdebtRepayment = 15764.76  # debt repayment budget
+CdebtRepayment = 11764.76  # debt repayment budget
 Ctotal = Cedu + (Ce * (Tweeks/4)) + Cbuf + Cdating + CdebtRepayment  # total cost
 taxRate = 0.46  # tax rate
 taxThreshold = 619.43  # tax threshold in USD
@@ -70,6 +70,31 @@ def get_current_cycle():
 
 	return start, end, payoutDate
 
+def what_would_happen_if_i_didnt_work_on(date, df):
+	# TODO: not working as expected, the predicted earnings are higher than what we predict for the current cycle (which is unlikely)
+	# get all dates until now
+	all = pd.date_range(start=df['dt'].min(), end=df['dt'].max())
+	all = pd.DataFrame({"dt": all})
+	df = all.merge(df, on="dt", how="left")
+	df["Rimmediate"].fillna(0, inplace=True)
+
+	# get all dates until now, but not including the date we want to predict
+	df = df[df["dt"] < date]
+
+	# get all dates until now, but not including the date we want to predict, and not including days with no earnings
+	df = df[df["Rimmediate"] > 0]
+
+	# get all dates until now, but not including the date we want to predict, and not including days with no earnings, and group by day
+	df = df.groupby("dt")["Rimmediate"].sum().reset_index()
+
+	# predict earnings at the end of current cycle, given that `date` is zero
+	pred = predict_cycle_earnings(df, date.year, date.month, 1 if date.day <= 15 else 2)
+
+	# pay tax on predicted earnings
+	pred, taxToPay = calculate_tax_and_earnings(pred)
+
+	return pred, taxToPay
+
 def get_days_in_month(y, m):
 	return monthrange(y, m)[1]
 
@@ -83,7 +108,7 @@ def get_cycle_dates(y, m, cycle):
 		end = datetime(y, m, get_days_in_month(y, m))
 		return mid, end
 
-def predict_next_cycle_earnings(df, y, m, cycle):
+def predict_cycle_earnings(df, y, m, cycle):
 	dailies = df.copy()
 	dailies = dailies.groupby("dt")["Rimmediate"].sum().reset_index() # sum earnings for each day (this also fills days with no earnings with 0 to prevent NaNs)
 	dailies["dt"] = pd.to_datetime(dailies["dt"]).apply(lambda x: x.toordinal()) # convert dates to ordinal
@@ -96,7 +121,9 @@ def predict_next_cycle_earnings(df, y, m, cycle):
 
 	start, end = get_cycle_dates(y, m, cycle)
 	next = [date.toordinal() for date in pd.date_range(start=start, end=end)]
-	logging.info(f"Predicted cycle: {start.strftime('%Y-%m-%d')} - {end.strftime('%Y-%m-%d')}")
+	logging.debug(f"Predicted cycle: {start.strftime('%Y-%m-%d')} - {end.strftime('%Y-%m-%d')}")
+
+	logging.debug(f"Last date in dataset: {datetime.fromordinal(dailies['dt'].max())} with an Rimmediate of {dailies[dailies['dt'] == dailies['dt'].max()]['Rimmediate'].values[0]}")
 
 	preds = model.predict(np.array(next).reshape(-1, 1))
 	sum = np.sum(preds)
@@ -131,7 +158,7 @@ df.to_csv("log.csv", index=False)
 Ttotal = Tweeks * ThoursWeek - len(df)  # total hours to work
 
 if not df.empty:
-	all = pd.date_range(start=df['dt'].min(), end=df['dt'].max())
+	all = pd.date_range(start=df["dt"].min(), end=df["dt"].max() + timedelta(days=1) if datetime.now().day != df["dt"].max().day else df["dt"].max()) # add one day if today is not the last day in the dataset
 	all = pd.DataFrame({"dt": all})
 	df = all.merge(df, on="dt", how="left")
 	df["Rimmediate"].fillna(0, inplace=True)
@@ -169,6 +196,7 @@ currentCycleMeanEarnings = currentCycleEarnings / currentCycleDf["dt"].nunique()
 if currentCycleDf["dt"].nunique() > 0:
 ### show stats ###
 	print(colored(f"Current cycle: {start.strftime('%Y-%m-%d')} - {end.strftime('%Y-%m-%d')}", "white"))
+	print(colored(f"Days left in current cycle: {end.day - datetime.now().day}", "white"))
 	print(colored(f"Current cycle earnings: {currentCycleEarnings:.2f} USD ({currentCycleEarnings * usdToDkk:.2f} DKK)", "white"))
 	print(colored(f"Current cycle net profit: {currentCycleNetProfit:.2f} USD ({currentCycleNetProfit * usdToDkk:.2f} DKK)", "white"))
 	print(colored(f"Current cycle tax to pay: {currentCycleTaxToPay:.2f} USD ({currentCycleTaxToPay * usdToDkk:.2f} DKK)", "white"))
@@ -201,14 +229,20 @@ print(colored(f"Mean daily net profit: {meanDailyNetProfit:.2f} USD ({meanDailyN
 print(colored(f"Mean daily hours worked: {meanDailyHoursWorked:.2f}\n", "white"))
 
 ## preds ##
-thisCyclePred = predict_next_cycle_earnings(df, y, m, cycle)
+thisCyclePred = predict_cycle_earnings(df, y, m, cycle)
 # pay tax on predicted earnings
 thisCyclePreds, taxToPay = calculate_tax_and_earnings(thisCyclePred)
 print(colored(f"Predicted earnings for this cycle: {thisCyclePred:.2f} USD - {taxToPay:.2f} USD = {thisCyclePreds:.2f} USD ({thisCyclePreds * usdToDkk:.2f} DKK)", "white"))
-nextCyclePred = predict_next_cycle_earnings(df, y, m + 1 if cycle == 2 else m, 1 if cycle == 2 else 2)
+nextCyclePred = predict_cycle_earnings(df, y, m + 1 if cycle == 2 else m, 1 if cycle == 2 else 2)
 # pay tax on predicted earnings
 nextCyclePreds, taxToPay = calculate_tax_and_earnings(nextCyclePred)
 print(colored(f"Predicted earnings for next cycle: {nextCyclePred:.2f} USD - {taxToPay:.2f} USD = {nextCyclePreds:.2f} USD ({nextCyclePreds * usdToDkk:.2f} DKK)", "white"))
+
+## what would happen if I didn't work on a given date ##
+# date = input("What would happen if I didn't work on (YYYY-MM-DD): ")
+# date = datetime.strptime(date, "%Y-%m-%d")
+# pred = what_would_happen_if_i_didnt_work_on(date, df)
+# print(colored(f"Predicted earnings if I didn't work on {date.strftime('%Y-%m-%d')}: {pred[0]:.2f} USD ({pred[0] * usdToDkk:.2f} DKK)", "white"))
 
 print(colored(f"Days to repay debt: {(CdebtRepayment + Ce) / meanDailyNetProfit:.2f}", "white"))
 
