@@ -120,12 +120,12 @@ def predict_cycle_earnings(df, y, m, cycle):
 	model.fit(dailies[["dt"]], dailies["Rimmediate"])
 
 	start, end = get_cycle_dates(y, m, cycle)
-	next = [date.toordinal() for date in pd.date_range(start=start, end=end)]
+	next = pd.DataFrame([date.toordinal() for date in pd.date_range(start, end)], columns=["dt"])
 	logging.debug(f"Predicted cycle: {start.strftime('%Y-%m-%d')} - {end.strftime('%Y-%m-%d')}")
 
 	logging.debug(f"Last date in dataset: {datetime.fromordinal(dailies['dt'].max())} with an Rimmediate of {dailies[dailies['dt'] == dailies['dt'].max()]['Rimmediate'].values[0]}")
 
-	preds = model.predict(np.array(next).reshape(-1, 1))
+	preds = model.predict(next)
 	sum = np.sum(preds)
 	return sum
 
