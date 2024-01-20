@@ -157,9 +157,9 @@ except FileNotFoundError:
 	df = pd.DataFrame(columns=["dt", "hour", "Rimmediate"])
 
 if "dt" in df.columns:
-	df["month"] = df["dt"].dt.month
-	df["year"] = df["dt"].dt.year
-	df["cycle"] = np.where(df["dt"].dt.day <= 15, 1, 2)
+	df["month"] = pd.to_datetime(df["dt"]).dt.month
+	df["year"] = pd.to_datetime(df["dt"]).dt.year
+	df["cycle"] = np.where(pd.to_datetime(df["dt"]).dt.day <= 15, 1, 2)
 
 start, end, payoutDate = get_current_cycle()
 currentCycle = 1 if datetime.now().day <= 15 else 2
@@ -175,6 +175,9 @@ while True:
 	df = pd.concat([df, pd.DataFrame({"dt": [timeNow], "hour": [hour], "Rimmediate": [Rimmediate], "month": [datetime.now().month], "year": [datetime.now().year], "cycle": [currentCycle]}).dropna()], ignore_index=True, sort=False)
 
 df.to_csv("log.csv", index=False)
+
+# convert to datetime again
+df["dt"] = pd.to_datetime(df["dt"])
 
 Ttotal = Tweeks * ThoursWeek - len(df)  # total hours to work
 Ce = 1000 if currentCycle == 1 else 300
@@ -290,6 +293,7 @@ render_pbar(Cdating, currentCycleNetProfit - Ce - Cedu - CdebtRepayment, "Dating
 render_pbar(Cbuf, currentCycleNetProfit - Ce - Cedu - Cdating - CdebtRepayment, "Buffer", "yellow")
 # absolute progress bar for motivation
 render_pbar(Ctotal, currentCycleNetProfit, "Total", "grey")
+print(f"At this rate, it will take you {Ctotal / meanDailyEarnings:.2f} days (that's {(Ctotal/meanDailyEarnings) / 365:.2f} FUCKING years) to reach your goal of {Ctotal:.2f} USD ({Ctotal * usdToDkk:.2f} DKK)")
 print("")
 # maintenance progress bars - get a full medical check-up every ~6 months (1000 work hours)
 render_pbar(1000, len(workedDaysDf), "Maintenance (check-up)", "cyan")
