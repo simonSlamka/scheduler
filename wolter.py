@@ -10,6 +10,14 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 import logging
+import argparse
+import matplotlib.pyplot as plt
+from matplotlib.table import Table
+from pandas.plotting import table
+
+parser = argparse.ArgumentParser(description="Wolter")
+parser.add_argument("--target", type=float, default=0, help="Target earnings for current cycle (in USD)", nargs="?", const=0)
+args = parser.parse_args()
 
 logging.basicConfig(level=logging.INFO)
 
@@ -99,6 +107,46 @@ def what_would_happen_if_i_didnt_work_on(date, df):
 
 	return pred, taxToPay
 
+def gen_schedule_for_cycle(df, y, m, cycle, targetEarnings):
+	start, end = get_cycle_dates(y, m, cycle)
+	today = datetime.now().date()
+
+	if y == today.year and m == today.month and cycle == (1 if today.day <= 15 else 2):
+		start = today + timedelta(days=1)
+
+	df["dt"] = pd.to_datetime(df["dt"])
+	df["hour"] = pd.to_datetime(df["hour"], format="%I%p").dt.hour
+
+	hourlies = df.groupby(["dt", "hour"])["Rimmediate"].sum().reset_index()
+
+	schedule = []
+	currentCycleEarnings = df[(df["year"] == y) & (df["month"] == m) & (df["cycle"] == cycle)]["Rimmediate"].sum()
+	remaining = targetEarnings - (currentCycleEarnings if currentCycleEarnings < targetEarnings else 0)
+
+	# peaks
+	for date in pd.date_range(start, end):
+		if date.weekday() >= 4: # peak days
+			for hour in range(17, 21): # peak hours
+				avg = hourlies[(hourlies["dt"].dt.dayofweek == date.weekday()) & (hourlies["hour"] == hour)]["Rimmediate"].mean()
+				if avg > 0:
+					schedule.append((date.strftime("%Y-%m-%d"), f"{hour}:00", avg))
+					remaining -= avg
+					if remaining <= 0:
+						return schedule
+
+	# non-peaks
+	for date in pd.date_range(start, end):
+		if date.weekday() < 4 or (date.weekday() >= 4 and hour < 17 or hour > 20):
+			for hour in range(5, 21):
+				avg = hourlies[(hourlies["dt"].dt.dayofweek == date.weekday()) & (hourlies["hour"] == hour)]["Rimmediate"].mean()
+				if avg > 0:
+					schedule.append((date.strftime("%Y-%m-%d"), f"{hour}:00", avg))
+					remaining -= avg
+					if remaining <= 0:
+						return schedule
+
+	return schedule
+
 def get_days_in_month(y, m):
 	return monthrange(y, m)[1]
 
@@ -165,16 +213,17 @@ start, end, payoutDate = get_current_cycle()
 currentCycle = 1 if datetime.now().day <= 15 else 2
 currentPeriodProfit, currentPeriodTaxToPay = calculate_cycle_earnings(df, datetime.now().year, datetime.now().month, currentCycle)
 
-while True:
-	hoursInput = input("Hour|Rimmediate (\"stop\" to break): ")
-	if hoursInput.lower() == "stop" or hoursInput == "":
-		break
-	timeNow = datetime.now().strftime("%Y-%m-%d")
-	hour, Rimmediate = hoursInput.split("|")
-	Rimmediate = float(Rimmediate)
-	df = pd.concat([df, pd.DataFrame({"dt": [timeNow], "hour": [hour], "Rimmediate": [Rimmediate], "month": [datetime.now().month], "year": [datetime.now().year], "cycle": [currentCycle]}).dropna()], ignore_index=True, sort=False)
+if args.target == 0:
+	while True:
+		hoursInput = input("Hour|Rimmediate (\"stop\" to break): ")
+		if hoursInput.lower() == "stop" or hoursInput == "":
+			break
+		timeNow = datetime.now().strftime("%Y-%m-%d")
+		hour, Rimmediate = hoursInput.split("|")
+		Rimmediate = float(Rimmediate)
+		df = pd.concat([df, pd.DataFrame({"dt": [timeNow], "hour": [hour], "Rimmediate": [Rimmediate], "month": [datetime.now().month], "year": [datetime.now().year], "cycle": [currentCycle]}).dropna()], ignore_index=True, sort=False)
 
-df.to_csv("log.csv", index=False)
+	df.to_csv("log.csv", index=False)
 
 # convert to datetime again
 df["dt"] = pd.to_datetime(df["dt"])
@@ -263,6 +312,41 @@ nextCyclePred = predict_cycle_earnings(df, y, m + 1 if cycle == 2 else m, 1 if c
 # pay tax on predicted earnings
 nextCyclePreds, taxToPay = calculate_tax_and_earnings(nextCyclePred)
 print(colored(f"Predicted earnings for next cycle: {nextCyclePred:.2f} USD - {taxToPay:.2f} USD = {nextCyclePreds:.2f} USD ({nextCyclePreds * usdToDkk:.2f} DKK)", "white"))
+
+## suggested schedule for current cycle ##
+if args.target > 0:
+	schedule = gen_schedule_for_cycle(df, y, m, cycle, args.target)
+	print(colored(f"Suggested schedule for current cycle (target: {args.target:.2f} USD):", "white"))
+
+	today = datetime.now().date()
+	schedule = [entry for entry in schedule if datetime.strptime(entry[0], "%Y-%m-%d").date() >= today]
+	schedule = sorted(schedule, key=lambda x: datetime.strptime(x[0], "%Y-%m-%d"))
+
+	for entry in schedule:
+		date, hour, estimatedEarnings = entry
+		print(colored(f"{date} {hour}:00 - {estimatedEarnings:.2f} USD ({estimatedEarnings * usdToDkk:.2f} DKK)", "white"))
+
+	print(colored(f"Total hours to work from now until end of cycle: {len(schedule)}\nwith a total estimated earnings of {sum([entry[2] for entry in schedule]) + currentCycleEarnings:.2f} USD ({(sum([entry[2] for entry in schedule]) + currentCycleEarnings) * usdToDkk:.2f} DKK) (distributed as follows: {currentCycleEarnings:.2f} USD ({currentCycleEarnings * usdToDkk:.2f} DKK) from current cycle and {sum([entry[2] for entry in schedule]):.2f} USD ({sum([entry[2] for entry in schedule]) * usdToDkk:.2f} DKK) from suggested schedule)\nMean daily hours on schedule: {len(schedule) / (end.day - today.day):.2f}\n", "white"))
+
+	scheduleDf = pd.DataFrame(schedule, columns=["Date", "Hour", "Estimated earnings (USD)"])
+	scheduleDf["Estimated earnings (DKK)"] = (scheduleDf["Estimated earnings (USD)"] * usdToDkk).round(2)
+
+	fig, ax = plt.subplots(figsize=(12, len(schedule) * 0.5))
+	ax.set_frame_on(False)
+	ax.xaxis.set_visible(False)
+	ax.yaxis.set_visible(False)
+
+	tbl = Table(ax, bbox=[0, 0, 1, 1])
+
+	ncols = len(scheduleDf.columns)
+	for i, col in enumerate(scheduleDf.columns):
+		tbl.add_cell(-1, i, width=1 / ncols, height=0.1, text=col, loc="center", facecolor="orange")
+		color = "lightblue"
+		for j, val in enumerate(scheduleDf[col]):
+			tbl.add_cell(j, i, width=1 / ncols, height=0.1, text=val, loc="center", facecolor=color)
+
+	ax.add_table(tbl)
+	plt.show()
 
 ## what would happen if I didn't work on a given date ##
 # date = input("What would happen if I didn't work on (YYYY-MM-DD): ")
