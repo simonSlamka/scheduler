@@ -111,8 +111,15 @@ def gen_schedule_for_cycle(df, y, m, cycle, targetEarnings):
 	start, end = get_cycle_dates(y, m, cycle)
 	today = datetime.now().date()
 
+	bResumeAfterBreak = False
+
 	if y == today.year and m == today.month and cycle == (1 if today.day <= 15 else 2):
 		start = today + timedelta(days=1)
+		# if we're resuming work after a break of at least 3 days, start easy, with only 2 hours max
+		if (today - pd.to_datetime(df["dt"]).max().date()).days >= 3:
+			bResumeAfterBreak = True
+			print(colored("Resuming work after a break of at least 3 days, starting easy with only 2 hours max", "yellow"))
+
 
 	df["dt"] = pd.to_datetime(df["dt"])
 	df["hour"] = pd.to_datetime(df["hour"], format="%I%p").dt.hour
@@ -123,29 +130,37 @@ def gen_schedule_for_cycle(df, y, m, cycle, targetEarnings):
 	currentCycleEarnings = df[(df["year"] == y) & (df["month"] == m) & (df["cycle"] == cycle)]["Rimmediate"].sum()
 	remaining = targetEarnings - (currentCycleEarnings if currentCycleEarnings < targetEarnings else 0)
 
+	firstDay = True
+
 	# peaks
 	for date in pd.date_range(start, end):
 		if date.weekday() >= 4: # peak days
-			for hour in range(17, 21): # peak hours
+			for hour in range(17, 20): # peak hours
 				avg = hourlies[(hourlies["dt"].dt.dayofweek == date.weekday()) & (hourlies["hour"] == hour)]["Rimmediate"].mean()
 				if avg > 0:
+					if firstDay and bResumeAfterBreak:
+						avg = min(avg, 2)
+						firstDay = False
 					schedule.append((date.strftime("%Y-%m-%d"), f"{hour}:00", avg))
 					remaining -= avg
 					if remaining <= 0:
-						return schedule
+						return schedule, remaining
 
 	# non-peaks
 	for date in pd.date_range(start, end):
 		if date.weekday() < 4 or (date.weekday() >= 4 and hour < 17 or hour > 20):
-			for hour in range(5, 21):
+			for hour in range(17, 21):
 				avg = hourlies[(hourlies["dt"].dt.dayofweek == date.weekday()) & (hourlies["hour"] == hour)]["Rimmediate"].mean()
 				if avg > 0:
+					if firstDay and bResumeAfterBreak:
+						avg = min(avg, 2)
+						firstDay = False
 					schedule.append((date.strftime("%Y-%m-%d"), f"{hour}:00", avg))
 					remaining -= avg
 					if remaining <= 0:
-						return schedule
+						return schedule, remaining
 
-	return schedule
+	return schedule, remaining
 
 def get_days_in_month(y, m):
 	return monthrange(y, m)[1]
@@ -288,7 +303,7 @@ if currentCycleDf["dt"].nunique() > 0:
 	print(colored(f"Current cycle mean earnings per week: {currentCycleEarnings / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleEarnings / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
 	print(colored(f"Current cycle mean net profit per week: {currentCycleNetProfit / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleNetProfit / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
 	print(colored(f"Current cycle mean earnings per month: {currentCycleEarnings / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleEarnings / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)", "white"))
-	print(colored(f"Current cycle mean net profit per month: {currentCycleNetProfit / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleNetProfit / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK\n", "white"))
+	print(colored(f"Current cycle mean net profit per month: {currentCycleNetProfit / currentCycleDf['dt'].nunique():.2f} USD ({(currentCycleNetProfit / currentCycleDf['dt'].nunique()) * usdToDkk:.2f} DKK)\n", "white"))
 else:
 	print(colored("No data for current cycle\n", "red"))
 
@@ -308,6 +323,8 @@ thisCyclePred = predict_cycle_earnings(df, y, m, cycle)
 # pay tax on predicted earnings
 thisCyclePreds, taxToPay = calculate_tax_and_earnings(thisCyclePred)
 print(colored(f"Predicted earnings for this cycle: {thisCyclePred:.2f} USD - {taxToPay:.2f} USD = {thisCyclePreds:.2f} USD ({thisCyclePreds * usdToDkk:.2f} DKK)", "white"))
+if currentCycle == 2:
+	print(colored(f"From predicted earnings this cycle, use 300 USD for food, {(thisCyclePreds - 300) / 2:.2f} USD for segment 1 of debt repayment, and {((thisCyclePreds - 300) / 2) / 2:.2f} USD for segment 2 of debt repayment", "yellow"))
 nextCyclePred = predict_cycle_earnings(df, y, m + 1 if cycle == 2 else m, 1 if cycle == 2 else 2)
 # pay tax on predicted earnings
 nextCyclePreds, taxToPay = calculate_tax_and_earnings(nextCyclePred)
@@ -318,17 +335,24 @@ if args.target > 0:
 	schedule = gen_schedule_for_cycle(df, y, m, cycle, args.target)
 	print(colored(f"Suggested schedule for current cycle (target: {args.target:.2f} USD):", "white"))
 
+	if schedule[1] > 0:
+		print(colored(f"WARNING: can't reach target earnings for this cycle ({schedule[1]:.2f} USD missing ({schedule[1] * usdToDkk:.2f} DKK))", "red"))
+		# raise ValueError(colored("WILL NOT REACH TARGET EARNINGS FOR THIS CYCLE", "red"))
+	else:
+		print(colored(f"If you follow this schedule, you will reach your target earnings for this cycle ({args.target:.2f} USD ({args.target * usdToDkk:.2f} DKK))", "green"))
+
 	today = datetime.now().date()
-	schedule = [entry for entry in schedule if datetime.strptime(entry[0], "%Y-%m-%d").date() >= today]
+	schedule = [entry for entry in schedule[0] if datetime.strptime(entry[0], "%Y-%m-%d").date() >= today]
 	schedule = sorted(schedule, key=lambda x: datetime.strptime(x[0], "%Y-%m-%d"))
 
 	for entry in schedule:
 		date, hour, estimatedEarnings = entry
-		print(colored(f"{date} {hour}:00 - {estimatedEarnings:.2f} USD ({estimatedEarnings * usdToDkk:.2f} DKK)", "white"))
+		# print(colored(f"{date} {hour}:00 - {estimatedEarnings:.2f} USD ({estimatedEarnings * usdToDkk:.2f} DKK)", "white"))
 
 	print(colored(f"Total hours to work from now until end of cycle: {len(schedule)}\nwith a total estimated earnings of {sum([entry[2] for entry in schedule]) + currentCycleEarnings:.2f} USD ({(sum([entry[2] for entry in schedule]) + currentCycleEarnings) * usdToDkk:.2f} DKK) (distributed as follows: {currentCycleEarnings:.2f} USD ({currentCycleEarnings * usdToDkk:.2f} DKK) from current cycle and {sum([entry[2] for entry in schedule]):.2f} USD ({sum([entry[2] for entry in schedule]) * usdToDkk:.2f} DKK) from suggested schedule)\nMean daily hours on schedule: {len(schedule) / (end.day - today.day):.2f}\n", "white"))
 
 	scheduleDf = pd.DataFrame(schedule, columns=["Date", "Hour", "Estimated earnings (USD)"])
+	scheduleDf["Estimated earnings (USD)"] = scheduleDf["Estimated earnings (USD)"].round(2)
 	scheduleDf["Estimated earnings (DKK)"] = (scheduleDf["Estimated earnings (USD)"] * usdToDkk).round(2)
 
 	fig, ax = plt.subplots(figsize=(12, len(schedule) * 0.5))
