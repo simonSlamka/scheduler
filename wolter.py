@@ -38,6 +38,9 @@ taxThreshold = 619.43  # tax threshold in USD
 usdToDkk = 6.84  # USD to DKK conversion rate, as of 2024-01-16 (YYYY-MM-DD)
 
 def calculate_tax_and_earnings(cycleEarnings):
+	earningsThisYearThusFar = df[df["year"] == datetime.now().year]["Rimmediate"].sum()
+	if earningsThisYearThusFar <= 7200:
+		taxRate = 0.0 # 0% tax rate for the first 7200 USD earned in a year
 	taxable = max(0, cycleEarnings - (taxThreshold / 2))
 	taxToPay = taxable * taxRate
 	netProfit = cycleEarnings - taxToPay
@@ -135,7 +138,7 @@ def gen_schedule_for_cycle(df, y, m, cycle, targetEarnings):
 	# peaks
 	for date in pd.date_range(start, end):
 		if date.weekday() >= 4: # peak days
-			for hour in range(17, 20): # peak hours
+			for hour in range(16, 22): # peak hours
 				avg = hourlies[(hourlies["dt"].dt.dayofweek == date.weekday()) & (hourlies["hour"] == hour)]["Rimmediate"].mean()
 				if avg > 0:
 					if firstDay and bResumeAfterBreak:
@@ -251,7 +254,7 @@ if not df.empty:
 	all = pd.date_range(start=df["dt"].min(), end=df["dt"].max() + timedelta(days=1) if datetime.now().day != df["dt"].max().day else df["dt"].max()) # add one day if today is not the last day in the dataset
 	all = pd.DataFrame({"dt": all})
 	df = all.merge(df, on="dt", how="left")
-	df["Rimmediate"].fillna(0, inplace=True)
+	df["Rimmediate"].fillna(0)
 
 # calc earnings and stats (including means and running avgs) for both current cylce, all until now, and future
 ## totals
@@ -324,7 +327,7 @@ thisCyclePred = predict_cycle_earnings(df, y, m, cycle)
 thisCyclePreds, taxToPay = calculate_tax_and_earnings(thisCyclePred)
 print(colored(f"Predicted earnings for this cycle: {thisCyclePred:.2f} USD - {taxToPay:.2f} USD = {thisCyclePreds:.2f} USD ({thisCyclePreds * usdToDkk:.2f} DKK)", "white"))
 if currentCycle == 2:
-	print(colored(f"From predicted earnings this cycle, use 300 USD for food, {(thisCyclePreds - 300) / 2:.2f} USD for segment 1 of debt repayment, and {((thisCyclePreds - 300) / 2) / 2:.2f} USD for segment 2 of debt repayment", "yellow"))
+	print(colored(f"From predicted earnings this cycle, use 150 USD for food, {(thisCyclePreds - 150) / 2:.2f} USD for segment 1 of debt repayment, and {((thisCyclePreds - 150) / 2) / 2:.2f} USD for segment 2 of debt repayment", "yellow"))
 nextCyclePred = predict_cycle_earnings(df, y, m + 1 if cycle == 2 else m, 1 if cycle == 2 else 2)
 # pay tax on predicted earnings
 nextCyclePreds, taxToPay = calculate_tax_and_earnings(nextCyclePred)
