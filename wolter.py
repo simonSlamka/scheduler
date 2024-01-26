@@ -117,12 +117,12 @@ def gen_schedule_for_cycle(df, y, m, cycle, targetEarnings):
 	bResumeAfterBreak = False
 
 	if y == today.year and m == today.month and cycle == (1 if today.day <= 15 else 2):
-		start = today + timedelta(days=1)
+		start = today + timedelta(days=1) # start from tomorrow
 		# if we're resuming work after a break of at least 3 days, start easy, with only 2 hours max
-		if (today - pd.to_datetime(df["dt"]).max().date()).days >= 3:
-			bResumeAfterBreak = True
-			print(colored("Resuming work after a break of at least 3 days, starting easy with only 2 hours max", "yellow"))
-
+		# if (today - pd.to_datetime(df["dt"]).max().date()).days >= 3:
+		# 	bResumeAfterBreak = True
+		# 	print(colored("Resuming work after a break of at least 3 days, starting easy with only 2 hours max", "yellow"))
+		pass
 
 	df["dt"] = pd.to_datetime(df["dt"])
 	df["hour"] = pd.to_datetime(df["hour"], format="%I%p").dt.hour
@@ -133,17 +133,14 @@ def gen_schedule_for_cycle(df, y, m, cycle, targetEarnings):
 	currentCycleEarnings = df[(df["year"] == y) & (df["month"] == m) & (df["cycle"] == cycle)]["Rimmediate"].sum()
 	remaining = targetEarnings - (currentCycleEarnings if currentCycleEarnings < targetEarnings else 0)
 
-	firstDay = True
+	# firstDay = True # ! unused
 
 	# peaks
 	for date in pd.date_range(start, end):
 		if date.weekday() >= 4: # peak days
-			for hour in range(16, 22): # peak hours
+			for hour in range(16, 23): # peak hours
 				avg = hourlies[(hourlies["dt"].dt.dayofweek == date.weekday()) & (hourlies["hour"] == hour)]["Rimmediate"].mean()
 				if avg > 0:
-					if firstDay and bResumeAfterBreak:
-						avg = min(avg, 2)
-						firstDay = False
 					schedule.append((date.strftime("%Y-%m-%d"), f"{hour}:00", avg))
 					remaining -= avg
 					if remaining <= 0:
@@ -152,12 +149,11 @@ def gen_schedule_for_cycle(df, y, m, cycle, targetEarnings):
 	# non-peaks
 	for date in pd.date_range(start, end):
 		if date.weekday() < 4 or (date.weekday() >= 4 and hour < 17 or hour > 20):
-			for hour in range(17, 21):
+			for hour in range(17, 20):
+				if date.weekday() >= 4:
+					continue
 				avg = hourlies[(hourlies["dt"].dt.dayofweek == date.weekday()) & (hourlies["hour"] == hour)]["Rimmediate"].mean()
 				if avg > 0:
-					if firstDay and bResumeAfterBreak:
-						avg = min(avg, 2)
-						firstDay = False
 					schedule.append((date.strftime("%Y-%m-%d"), f"{hour}:00", avg))
 					remaining -= avg
 					if remaining <= 0:
@@ -328,6 +324,8 @@ thisCyclePreds, taxToPay = calculate_tax_and_earnings(thisCyclePred)
 print(colored(f"Predicted earnings for this cycle: {thisCyclePred:.2f} USD - {taxToPay:.2f} USD = {thisCyclePreds:.2f} USD ({thisCyclePreds * usdToDkk:.2f} DKK)", "white"))
 if currentCycle == 2:
 	print(colored(f"From predicted earnings this cycle, use 150 USD for food, {(thisCyclePreds - 150) / 2:.2f} USD for segment 1 of debt repayment, and {((thisCyclePreds - 150) / 2) / 2:.2f} USD for segment 2 of debt repayment", "yellow"))
+else:
+	print(colored(f"From predicted earnings this cycle, use 150 USD for food, 685 USD for rent, {(thisCyclePreds - 150 - 685) / 2:.2f} USD for segment 1 of debt repayment, and {((thisCyclePreds - 150 - 685) / 2) / 2:.2f} USD for segment 2 of debt repayment", "yellow"))
 nextCyclePred = predict_cycle_earnings(df, y, m + 1 if cycle == 2 else m, 1 if cycle == 2 else 2)
 # pay tax on predicted earnings
 nextCyclePreds, taxToPay = calculate_tax_and_earnings(nextCyclePred)
@@ -338,10 +336,11 @@ if args.target > 0:
 	schedule = gen_schedule_for_cycle(df, y, m, cycle, args.target)
 	print(colored(f"Suggested schedule for current cycle (target: {args.target:.2f} USD):", "white"))
 
-	if schedule[1] > 0:
+	if schedule[1] > 0: # 
 		print(colored(f"WARNING: can't reach target earnings for this cycle ({schedule[1]:.2f} USD missing ({schedule[1] * usdToDkk:.2f} DKK))", "red"))
 		# raise ValueError(colored("WILL NOT REACH TARGET EARNINGS FOR THIS CYCLE", "red"))
 	else:
+		print(schedule[1])
 		print(colored(f"If you follow this schedule, you will reach your target earnings for this cycle ({args.target:.2f} USD ({args.target * usdToDkk:.2f} DKK))", "green"))
 
 	today = datetime.now().date()
