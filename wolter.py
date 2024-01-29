@@ -323,9 +323,12 @@ thisCyclePred = predict_cycle_earnings(df, y, m, cycle)
 thisCyclePreds, taxToPay = calculate_tax_and_earnings(thisCyclePred)
 print(colored(f"Predicted earnings for this cycle: {thisCyclePred:.2f} USD - {taxToPay:.2f} USD = {thisCyclePreds:.2f} USD ({thisCyclePreds * usdToDkk:.2f} DKK)", "white"))
 if currentCycle == 2:
-	print(colored(f"From predicted earnings this cycle, use 150 USD for food, {(thisCyclePreds - 150) / 2:.2f} USD for segment 1 of debt repayment, and {((thisCyclePreds - 150) / 2) / 2:.2f} USD for segment 2 of debt repayment", "yellow"))
+	# print(colored(f"From predicted earnings this cycle, use 150 USD for food and {(thisCyclePreds - 150) / 2:.2f} USD for segment 1 of debt repayment", "yellow"))
+	# ! remove the following line
+	print(colored(f"From actual earnings this cycle, use 100 USD for food and {((currentCycleNetProfit - 100) - 350) * usdToDkk:.2f} DKK for segment 1 of debt repayment", "yellow"))
+
 else:
-	print(colored(f"From predicted earnings this cycle, use 150 USD for food, 685 USD for rent, {(thisCyclePreds - 150 - 685) / 2:.2f} USD for segment 1 of debt repayment, and {((thisCyclePreds - 150 - 685) / 2) / 2:.2f} USD for segment 2 of debt repayment", "yellow"))
+	print(colored(f"From predicted earnings this cycle, use 150 USD for food, 685 USD for rent and {(thisCyclePreds - 150 - 685) / 2:.2f} USD for segment 1 of debt repayment", "yellow"))
 nextCyclePred = predict_cycle_earnings(df, y, m + 1 if cycle == 2 else m, 1 if cycle == 2 else 2)
 # pay tax on predicted earnings
 nextCyclePreds, taxToPay = calculate_tax_and_earnings(nextCyclePred)
