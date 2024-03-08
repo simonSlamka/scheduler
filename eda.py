@@ -118,7 +118,6 @@ plt.ylabel("Listens (7-day MA)")
 # print every other month on the x-axis. don't print days, since there's too many
 plt.xticks(sadSumsMovingAvg.index[::90], [date.strftime('%b %Y') for date in sadSumsMovingAvg.index[::90]], rotation=45)
 
-# Highlight the sections as per the comment, using the total data range to get the ranges
 plt.axhspan(sadSumsMovingAvg.min(), sadSumsMovingAvg.quantile(0.25), color='green', alpha=0.3)
 plt.axhspan(sadSumsMovingAvg.quantile(0.25), sadSumsMovingAvg.quantile(0.5), color='yellow', alpha=0.3)
 plt.axhspan(sadSumsMovingAvg.quantile(0.5), sadSumsMovingAvg.quantile(0.75), color='orange', alpha=0.3)
